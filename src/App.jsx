@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import HomePage from "./pages/HomePage";
-import AuthPage from "./pages/authPages.jsx";
+import AuthPage from "./pages/AuthPages";
+// User Home Page
+import UserHomePage from "./pages/UserHomePage";
 
 function App() {
   return (
@@ -8,6 +10,8 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/auth" element={<AuthPage />} />
+        // User Home Page
+        <Route path="/user-home" element={<UserHomePage />} />
       </Routes>
     </BrowserRouter>
   );

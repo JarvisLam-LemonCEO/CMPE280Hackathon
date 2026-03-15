@@ -11,19 +11,91 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
   const inputClass =
     "h-14 w-full rounded-[20px] border border-slate-200 bg-white px-14 pr-12 text-[16px] text-slate-700 outline-none placeholder:text-slate-400";
 
-  const goToLogin = () => {
-    setSearchParams({});
+  const resetVisibility = () => {
     setShowPassword(false);
     setShowConfirmPassword(false);
   };
 
+  const goToLogin = () => {
+    setSearchParams({});
+    resetVisibility();
+  };
+
   const goToSignup = () => {
     setSearchParams({ mode: "signup" });
-    setShowPassword(false);
-    setShowConfirmPassword(false);
+    resetVisibility();
+  };
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+
+    if (!loginEmail || !loginPassword) {
+      alert("Please enter your email and password.");
+      return;
+    }
+
+    const users = JSON.parse(localStorage.getItem("users")) || [];
+
+    const matchedUser = users.find(
+      (user) =>
+        user.email === loginEmail.trim() &&
+        user.password === loginPassword
+    );
+
+    if (!matchedUser) {
+      alert("Invalid email or password.");
+      return;
+    }
+
+    localStorage.setItem("currentUser", JSON.stringify(matchedUser));
+    navigate("/user-home");
+  };
+
+  const handleSignup = (e) => {
+    e.preventDefault();
+
+    if (!signupEmail || !signupPassword || !confirmPassword) {
+      alert("Please fill in all fields.");
+      return;
+    }
+
+    if (signupPassword !== confirmPassword) {
+      alert("Passwords do not match.");
+      return;
+    }
+
+    const users = JSON.parse(localStorage.getItem("users")) || [];
+
+    const userExists = users.some(
+      (user) => user.email === signupEmail.trim()
+    );
+
+    if (userExists) {
+      alert("This email is already registered.");
+      return;
+    }
+
+    const newUser = {
+      email: signupEmail.trim(),
+      password: signupPassword,
+    };
+
+    users.push(newUser);
+    localStorage.setItem("users", JSON.stringify(users));
+    localStorage.setItem("currentUser", JSON.stringify(newUser));
+
+    alert("Account created successfully.");
+    navigate("/user-home");
   };
 
   return (
@@ -64,7 +136,7 @@ export default function AuthPage() {
               Log in to access your image gallery dashboard.
             </p>
 
-            <form className="mt-10 space-y-6">
+            <form className="mt-10 space-y-6" onSubmit={handleLogin}>
               <div>
                 <label className="mb-2 block font-medium text-[#324767]">
                   Email
@@ -75,6 +147,8 @@ export default function AuthPage() {
                     type="email"
                     placeholder="Enter your email"
                     className={inputClass}
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
                   />
                 </div>
               </div>
@@ -89,6 +163,8 @@ export default function AuthPage() {
                     type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
                     className={inputClass}
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
                   />
                   <button
                     type="button"
@@ -139,7 +215,7 @@ export default function AuthPage() {
               Sign up to create your gallery account.
             </p>
 
-            <form className="mt-10 space-y-6">
+            <form className="mt-10 space-y-6" onSubmit={handleSignup}>
               <div>
                 <label className="mb-2 block font-medium text-[#324767]">
                   Email
@@ -150,6 +226,8 @@ export default function AuthPage() {
                     type="email"
                     placeholder="Enter your email"
                     className={inputClass}
+                    value={signupEmail}
+                    onChange={(e) => setSignupEmail(e.target.value)}
                   />
                 </div>
               </div>
@@ -164,6 +242,8 @@ export default function AuthPage() {
                     type={showPassword ? "text" : "password"}
                     placeholder="Create password"
                     className={inputClass}
+                    value={signupPassword}
+                    onChange={(e) => setSignupPassword(e.target.value)}
                   />
                   <button
                     type="button"
@@ -185,6 +265,8 @@ export default function AuthPage() {
                     type={showConfirmPassword ? "text" : "password"}
                     placeholder="Confirm password"
                     className={inputClass}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                   />
                   <button
                     type="button"
