@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { allThemeImages, themeById, themeData } from "../data/galleryData";
+import "/src/UserHomePage.css";
 
 const UPLOAD_STORAGE_KEY_PREFIX = "userGalleryUploadsV1";
 
@@ -186,54 +187,54 @@ function UserHomePage() {
     }
   }
 
-  return (
-    <main className="min-h-screen bg-[#f6f7fb] px-6 py-8 text-slate-900 sm:px-10 lg:px-16">
-      <header className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <nav className="navbar">
-                <ul className="navlist">
-                    <li>
-                        <Link to="/">Home</Link>
-                    </li>
-                    <li>
-                        <Link to="/images">Images</Link>
-                    </li>
-                </ul>
-            </nav>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#64748b]">
-            User dashboard
-          </p>
-          <h1 className="mt-2 text-[34px] font-bold tracking-[-0.03em] text-[#0f172f] sm:text-[44px]">
-            Themed Image Gallery
-          </h1>
-          <p className="mt-2 max-w-[760px] text-[17px] leading-7 text-[#64748b]">
-            Signed in as{" "}
-            <span className="font-semibold text-[#0f172f]">
-              {currentUser?.email || "guest"}
-            </span>
-            . Browse sample images organized by theme. Switch categories to
-            review focused collections or view the full gallery at once.
-          </p>
-        </div>
 
-        <div className="flex flex-wrap gap-3">
-        
-          <button
-            onClick={handleLogout}
-            className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700"
-          >
-            Log out
-          </button>
-          
-          
-          <button
-            onClick={() => navigate("/user-profile")}
-            className="rounded-2xl bg-[#000d33] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#00154d]"
-            >
-            User Profile
-            </button>
-        </div>
-      </header>
+  return (
+    
+    <main className="min-h-screen bg-[#f6f7fb] px-6 py-8 text-slate-900 sm:px-10 lg:px-16">
+    <div className="mx-auto w-full max-w-[1400px] rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-8">
+    <nav className="navbar">
+    <ul className="navlist">
+    <li>
+    <Link to="/">Home</Link>
+    </li>
+    <li>
+    <Link to="/images">Images</Link>
+    </li>
+    </ul>
+    </nav>
+    
+    <header className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+    <div>
+    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#64748b]">
+    User dashboard
+    </p>
+    <h1 className="mt-2 text-[34px] font-bold tracking-[-0.03em] text-[#0f172f] sm:text-[44px]">
+    Themed Image Gallery
+    </h1>
+    <p className="mt-2 max-w-[760px] text-[17px] leading-7 text-[#64748b]">
+    Signed in as <span className="font-semibold text-[#0f172f]">test@gmail.com</span>.
+    Browse sample images organized by theme. Switch categories to review
+    focused collections or view the full gallery at once.
+    </p>
+    </div>
+    
+    <div className="flex flex-wrap gap-3 lg:justify-end">
+    <button
+    onClick={handleLogout}
+    className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700"
+    >
+    Log out
+    </button>
+    
+    <button
+    onClick={() => navigate("/user-profile")}
+    className="rounded-2xl bg-[#000d33] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#00154d]"
+    >
+    User Profile
+    </button>
+    </div>
+    </header>
+    </div>
 
       <section className="mx-auto mt-8 w-full max-w-[1400px] rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-8">
         <div className="flex flex-wrap gap-3">
