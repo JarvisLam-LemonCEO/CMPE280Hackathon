@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { allThemeImages, themeById, themeData } from "../data/galleryData";
 
 const UPLOAD_STORAGE_KEY_PREFIX = "userGalleryUploadsV1";
@@ -8,7 +8,8 @@ function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("Could not read the selected image."));
+    reader.onerror = () =>
+      reject(new Error("Could not read the selected image."));
     reader.readAsDataURL(file);
   });
 }
@@ -65,7 +66,9 @@ function loadCachedUploads(storageKey) {
 }
 
 function UserHomePage() {
+  const navigate = useNavigate();
   const userUploadsKey = getCurrentUserUploadsKey();
+
   const [activeTheme, setActiveTheme] = useState("all");
   const [uploadedImages, setUploadedImages] = useState(() =>
     loadCachedUploads(userUploadsKey)
@@ -76,6 +79,23 @@ function UserHomePage() {
   const [uploadFile, setUploadFile] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    const currentUser = localStorage.getItem("currentUser");
+    if (!currentUser) {
+      navigate("/auth?mode=login");
+    }
+  }, [navigate]);
+
+  const handleLogout = () => {
+    localStorage.removeItem("currentUser");
+    navigate("/");
+  };
+
+  const handleSwitchAccount = () => {
+    localStorage.removeItem("currentUser");
+    navigate("/auth?mode=login");
+  };
 
   const imagesToRender = useMemo(() => {
     const sortedUploads = [...uploadedImages].sort(
@@ -102,11 +122,13 @@ function UserHomePage() {
         themeLabel: selectedTheme.label,
       })),
     ];
+
     return themeImages;
   }, [activeTheme, uploadedImages]);
 
   const filteredImages = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
+
     if (!normalizedQuery) {
       return imagesToRender;
     }
@@ -114,6 +136,7 @@ function UserHomePage() {
     return imagesToRender.filter((image) => {
       const title = image.title?.toLowerCase() || "";
       const subtitle = image.subtitle?.toLowerCase() || "";
+
       return (
         title.includes(normalizedQuery) || subtitle.includes(normalizedQuery)
       );
@@ -132,17 +155,9 @@ function UserHomePage() {
   async function handleUploadSubmit(event) {
     event.preventDefault();
 
-    if (!uploadFile) {
-      return;
-    }
-
-    if (!uploadDescription.trim()) {
-      return;
-    }
-
-    if (!uploadTitle.trim()) {
-      return;
-    }
+    if (!uploadFile) return;
+    if (!uploadDescription.trim()) return;
+    if (!uploadTitle.trim()) return;
 
     try {
       const dataUrl = await readFileAsDataUrl(uploadFile);
@@ -166,7 +181,7 @@ function UserHomePage() {
       setUploadFile(null);
       setShowUploadModal(false);
     } catch {
-      // Ignore read failures silently to keep the demo flow lightweight.
+      // Ignore read failures silently for demo flow
     }
   }
 
@@ -187,18 +202,19 @@ function UserHomePage() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Link
-            to="/"
-            className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+          <button
+            onClick={handleLogout}
+            className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700"
           >
-            Back to Landing
-          </Link>
-          <Link
-            to="/auth?mode=login"
+            Log out
+          </button>
+
+          <button
+            onClick={handleSwitchAccount}
             className="rounded-2xl bg-[#000d33] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#00154d]"
           >
             Switch Account
-          </Link>
+          </button>
         </div>
       </header>
 
@@ -211,6 +227,7 @@ function UserHomePage() {
           >
             Add Image
           </button>
+
           <button
             type="button"
             onClick={() => setActiveTheme("all")}
@@ -290,11 +307,14 @@ function UserHomePage() {
           <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-200">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-bold text-[#0f172f]">Add Your Own Image</h2>
+                <h2 className="text-xl font-bold text-[#0f172f]">
+                  Add Your Own Image
+                </h2>
                 <p className="mt-1 text-sm text-[#64748b]">
                   Choose a theme, write a description, and upload an image.
                 </p>
               </div>
+
               <button
                 type="button"
                 onClick={() => setShowUploadModal(false)}
@@ -339,7 +359,9 @@ function UserHomePage() {
                     type="text"
                     required
                     value={uploadDescription}
-                    onChange={(event) => setUploadDescription(event.target.value)}
+                    onChange={(event) =>
+                      setUploadDescription(event.target.value)
+                    }
                     placeholder="Describe the image"
                     className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                   />
@@ -352,7 +374,9 @@ function UserHomePage() {
                   type="file"
                   required
                   accept="image/*"
-                  onChange={(event) => setUploadFile(event.target.files?.[0] || null)}
+                  onChange={(event) =>
+                    setUploadFile(event.target.files?.[0] || null)
+                  }
                   className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                 />
               </label>
@@ -365,6 +389,7 @@ function UserHomePage() {
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
                   className="rounded-xl bg-[#000d33] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#00154d]"

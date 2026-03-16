@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
+
 export default function AuthPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
