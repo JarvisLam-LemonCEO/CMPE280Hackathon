@@ -7,7 +7,7 @@ import {
 } from "react-router-dom";
 
 function Images() {
-    // TODO: Implement the Images component to display images based on themes (animals, food, cities, nature views)
+    // TODO: Implement the Images component to display images based on themes (animals, food, cities, nature views). Also include the functionality to search image by name or theme (and to upload image if time permits).
     return <h2>Images</h2>;
 }
 
