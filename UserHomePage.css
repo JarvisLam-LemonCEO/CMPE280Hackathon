@@ -1,0 +1,18 @@
+.navbar {
+  background-color: blue;
+  padding: 10px;
+}
+
+.navlist {
+  list-style: none;     /* removes bullet points */
+  display: flex;        /* makes items horizontal */
+  gap: 20px;            /* space between items */
+  margin: 0;
+  padding: 0;
+}
+
+.navlist li {
+  color:black;
+  cursor: pointer;
+  font-weight: bold;
+}

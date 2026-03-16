@@ -190,6 +190,16 @@ function UserHomePage() {
     <main className="min-h-screen bg-[#f6f7fb] px-6 py-8 text-slate-900 sm:px-10 lg:px-16">
       <header className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
         <div>
+          <nav className="navbar">
+                <ul className="navlist">
+                    <li>
+                        <Link to="/">Home</Link>
+                    </li>
+                    <li>
+                        <Link to="/images">Images</Link>
+                    </li>
+                </ul>
+            </nav>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#64748b]">
             User dashboard
           </p>
