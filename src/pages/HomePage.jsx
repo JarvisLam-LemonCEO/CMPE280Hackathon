@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { allThemeImages, themeData } from "../data/galleryData";
 
 
 const features = [
@@ -24,30 +25,24 @@ const benefits = [
   "Scalable layout for future features",
 ];
 
-const previewCards = [
-  {
-    title: "Mountain View",
-    subtitle: "Nature collection",
-    gradient: "from-slate-300 to-slate-400",
-  },
-  {
-    title: "City Lights",
-    subtitle: "Urban collection",
-    gradient: "from-blue-200 to-blue-400",
-  },
-  {
-    title: "Food Moments",
-    subtitle: "Food collection",
-    gradient: "from-yellow-200 to-rose-300",
-  },
-  {
-    title: "Wild Stories",
-    subtitle: "Animal collection",
-    gradient: "from-purple-200 to-indigo-300",
-  },
-];
-
 export default function HomePage() {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const previewImages = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return allThemeImages.slice(0, 6);
+    }
+
+    return allThemeImages
+      .filter((image) => {
+        const haystack = `${image.title} ${image.subtitle} ${image.themeLabel}`.toLowerCase();
+        return haystack.includes(normalizedQuery);
+      })
+      .slice(0, 6);
+  }, [searchQuery]);
+
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-slate-900">
       <header className="mx-auto flex w-full max-w-[1440px] items-center justify-between px-6 py-6 sm:px-10 lg:px-16">
@@ -131,29 +126,51 @@ export default function HomePage() {
               <div className="rounded-[30px] border border-slate-200 bg-[#f8fafc] p-4 sm:p-5">
                 <input
                   type="text"
-                  placeholder="Search landscapes, food, cars, animals..."
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search by title or description..."
                   className="h-[64px] w-full rounded-[22px] border border-slate-200 bg-white px-6 text-[16px] text-slate-700 outline-none placeholder:text-slate-400"
                 />
 
                 <div className="mt-4 flex flex-wrap gap-3">
-                  <span className="rounded-full bg-[#e2e8f0] px-4 py-2 text-sm text-[#475569]">Nature</span>
-                  <span className="rounded-full bg-[#e2e8f0] px-4 py-2 text-sm text-[#475569]">Cars</span>
-                  <span className="rounded-full bg-[#e2e8f0] px-4 py-2 text-sm text-[#475569]">Food</span>
-                  <span className="rounded-full bg-[#e2e8f0] px-4 py-2 text-sm text-[#475569]">Animals</span>
+                  {themeData.map((theme) => (
+                    <button
+                      key={theme.id}
+                      type="button"
+                      onClick={() => setSearchQuery(theme.label)}
+                      className="rounded-full bg-[#e2e8f0] px-4 py-2 text-sm text-[#475569] transition hover:bg-[#d5deec]"
+                    >
+                      {theme.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
               <div className="mt-6 grid grid-cols-2 gap-4">
-                {previewCards.map((card) => (
-                  <div key={card.title} className="overflow-hidden rounded-[28px] bg-slate-200 ring-1 ring-slate-200">
-                    <div className={`h-[200px] bg-gradient-to-br ${card.gradient}`} />
-                    <div className="bg-[#cfd6e2] p-4">
-                      <p className="text-base font-semibold text-[#0f172f]">{card.title}</p>
-                      <p className="mt-1 text-sm text-[#64748b]">{card.subtitle}</p>
+                {previewImages.map((image) => (
+                  <div
+                    key={image.id}
+                    className="overflow-hidden rounded-[28px] bg-slate-200 ring-1 ring-slate-200"
+                  >
+                    <img
+                      src={image.url}
+                      alt={image.title}
+                      className="h-[200px] w-full object-cover"
+                      loading="lazy"
+                    />
+                    <div className="bg-[#e7ebf3] p-4">
+                      <p className="text-base font-semibold text-[#0f172f]">{image.title}</p>
+                      <p className="mt-1 text-sm text-[#64748b]">{image.subtitle}</p>
                     </div>
                   </div>
                 ))}
               </div>
+
+              {previewImages.length === 0 ? (
+                <p className="mt-5 rounded-xl bg-white px-4 py-3 text-sm text-[#64748b]">
+                  No preview images match your search.
+                </p>
+              ) : null}
             </div>
           </div>
         </section>
