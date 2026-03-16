@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { allThemeImages, themeById, themeData } from "../data/galleryData";
 
 const UPLOAD_STORAGE_KEY_PREFIX = "userGalleryUploadsV1";
@@ -217,19 +217,21 @@ function UserHomePage() {
         </div>
 
         <div className="flex flex-wrap gap-3">
+        
           <button
             onClick={handleLogout}
             className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700"
           >
             Log out
           </button>
-
+          
+          
           <button
-            onClick={handleSwitchAccount}
+            onClick={() => navigate("/user-profile")}
             className="rounded-2xl bg-[#000d33] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#00154d]"
-          >
-            Switch Account
-          </button>
+            >
+            User Profile
+            </button>
         </div>
       </header>
 
