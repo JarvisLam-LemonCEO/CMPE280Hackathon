@@ -67,6 +67,7 @@ function loadCachedUploads(storageKey) {
 
 function UserHomePage() {
   const navigate = useNavigate();
+  const currentUser = JSON.parse(localStorage.getItem("currentUser"));
   const userUploadsKey = getCurrentUserUploadsKey();
 
   const [activeTheme, setActiveTheme] = useState("all");
@@ -81,8 +82,8 @@ function UserHomePage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    const currentUser = localStorage.getItem("currentUser");
-    if (!currentUser) {
+    const storedUser = localStorage.getItem("currentUser");
+    if (!storedUser) {
       navigate("/auth?mode=login");
     }
   }, [navigate]);
@@ -196,8 +197,12 @@ function UserHomePage() {
             Themed Image Gallery
           </h1>
           <p className="mt-2 max-w-[760px] text-[17px] leading-7 text-[#64748b]">
-            Browse sample images organized by theme. Switch categories to review
-            focused collections or view the full gallery at once.
+            Signed in as{" "}
+            <span className="font-semibold text-[#0f172f]">
+              {currentUser?.email || "guest"}
+            </span>
+            . Browse sample images organized by theme. Switch categories to
+            review focused collections or view the full gallery at once.
           </p>
         </div>
 
