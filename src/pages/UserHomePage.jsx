@@ -5,6 +5,45 @@ import "/src/UserHomePage.css";
 
 const UPLOAD_STORAGE_KEY_PREFIX = "userGalleryUploadsV1";
 
+const ImageWithComments = ({ image }) => {
+  const [comment, setComment] = useState("");
+  const [commentList, setCommentList] = useState([]);
+
+  const handleAddComment = () => {
+    if (!comment.trim()) return;
+
+    setCommentList((prev) => [...prev, comment]);
+    setComment(""); // clear input
+  };
+
+  return (
+    <div className="mb-6">
+
+      <div className="mt-2 flex gap-2">
+        <input
+          type="text"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Add a comment..."
+          className="h-[52px] w-full rounded-2xl border border-slate-200 bg-white px-5 text-sm text-slate-700 outline-none"
+        />
+
+        <button onClick={handleAddComment}>
+          Post
+        </button>
+      </div>
+
+      <div className="mt-2">
+        {commentList.map((c, i) => (
+          <p key={i} className="text-sm text-slate-600">
+            {c}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -81,7 +120,7 @@ function UserHomePage() {
   const [uploadFile, setUploadFile] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-
+  
   useEffect(() => {
     const storedUser = localStorage.getItem("currentUser");
     if (!storedUser) {
@@ -175,6 +214,7 @@ function UserHomePage() {
         themeLabel: chosenTheme?.label || "Custom",
         createdAt: now,
         isUserUpload: true,
+        comment: "",
       };
 
       setUploadedImages((previous) => [...previous, newUpload]);
@@ -308,6 +348,10 @@ function UserHomePage() {
                   {image.title}
                 </h2>
                 <p className="text-sm text-[#64748b]">{image.subtitle}</p>
+                <span>
+                   <ImageWithComments key={image.id} image={image} />
+                </span>
+                <p>{image.comment}</p>
               </div>
             </article>
           ))}
