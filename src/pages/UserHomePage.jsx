@@ -6,14 +6,24 @@ import "/src/UserHomePage.css";
 const UPLOAD_STORAGE_KEY_PREFIX = "userGalleryUploadsV1";
 
 const ImageWithComments = ({ image }) => {
+  const storageKey = `comments-${image.id}`;
+
   const [comment, setComment] = useState("");
-  const [commentList, setCommentList] = useState([]);
+  const [commentList, setCommentList] = useState(() => {
+  const saved = localStorage.getItem(`comments-${image.id}`);
+  return saved ? JSON.parse(saved) : [];
+});
+
+  // ✅ Save to localStorage whenever comments change
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(commentList));
+  }, [commentList, storageKey]);
 
   const handleAddComment = () => {
     if (!comment.trim()) return;
 
     setCommentList((prev) => [...prev, comment]);
-    setComment(""); // clear input
+    setComment("");
   };
 
   return (
