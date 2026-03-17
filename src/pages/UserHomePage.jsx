@@ -282,6 +282,13 @@ function UserHomePage() {
               User Profile
             </button>
 
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
+            >
+              + Upload Image
+            </button>
+
           </div>
         </header>
       </div>
@@ -327,6 +334,86 @@ function UserHomePage() {
         </div>
 
       </section>
+
+      {/* Upload Modal */}
+
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-[500px] rounded-[28px] bg-white p-8 shadow-xl">
+
+            <h2 className="text-[24px] font-bold text-[#0f172f]">Upload Image</h2>
+            <p className="mt-1 text-sm text-[#64748b]">Add a new image to the gallery.</p>
+
+            <form className="mt-6 space-y-4" onSubmit={handleUploadSubmit}>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[#324767]">Title</label>
+                <input
+                  type="text"
+                  placeholder="Image title"
+                  value={uploadTitle}
+                  onChange={(e) => setUploadTitle(e.target.value)}
+                  className="h-[44px] w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[#324767]">Description</label>
+                <input
+                  type="text"
+                  placeholder="Short description"
+                  value={uploadDescription}
+                  onChange={(e) => setUploadDescription(e.target.value)}
+                  className="h-[44px] w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[#324767]">Theme</label>
+                <select
+                  value={uploadTheme}
+                  onChange={(e) => setUploadTheme(e.target.value)}
+                  className="h-[44px] w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none"
+                >
+                  {themeData.map((theme) => (
+                    <option key={theme.id} value={theme.id}>{theme.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[#324767]">Image File</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setUploadFile(e.target.files[0] || null)}
+                  className="w-full text-sm text-slate-700"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  className="h-[48px] w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="h-[48px] w-1/2 rounded-2xl bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700"
+                >
+                  Upload
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
 
     </main>
   );
