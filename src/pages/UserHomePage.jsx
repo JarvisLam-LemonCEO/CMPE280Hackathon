@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { allThemeImages, themeById, themeData } from "../data/galleryData";
+import { Image as ImageIcon, LogOut, User, Trash2, Upload } from "lucide-react";
 import "/src/UserHomePage.css";
 
 const UPLOAD_STORAGE_KEY_PREFIX = "userGalleryUploadsV1";
@@ -153,7 +154,14 @@ function UserHomePage() {
   const [uploadFile, setUploadFile] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isScrolled, setIsScrolled] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
+
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
   const [hiddenGalleryIds, setHiddenGalleryIds] = useState(() => {
     try {
       const raw = localStorage.getItem("hiddenGalleryIds");
@@ -262,73 +270,80 @@ function UserHomePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] px-6 py-8 text-slate-900 sm:px-10 lg:px-16">
+    <>
+      {/* Fixed Navbar */}
+      <header
+        className={`fixed top-0 z-50 flex w-full justify-center transition-all duration-300 ${
+          isScrolled ? "bg-white/80 backdrop-blur-md shadow-sm py-4" : "bg-white py-6 shadow-sm"
+        }`}
+      >
+        <div className="flex w-full max-w-[1440px] items-center justify-between px-6 sm:px-10 lg:px-16">
 
-      {/* Header Card */}
-
-      <div className="mx-auto w-full max-w-[1400px] rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-8">
-
-        <nav className="navbar">
-          <ul className="navlist">
-            <li>
-              <Link to="/">Home</Link>
-            </li>
-            <li>
-              <Link to="/images">Images</Link>
-            </li>
-          </ul>
-        </nav>
-
-        <header className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#64748b]">
-              User dashboard
-            </p>
-
-            <h1 className="mt-2 text-[34px] font-bold text-[#0f172f] sm:text-[44px]">
-              Themed Image Gallery
-            </h1>
-
-            <p className="mt-2 max-w-[760px] text-[17px] text-[#64748b]">
-              Browse sample images organized by theme.
-            </p>
+          {/* Logo */}
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#000d33] to-[#28457a] shadow-lg">
+              <ImageIcon size={20} className="text-white" />
+            </div>
+            <h2 className="text-[20px] font-bold tracking-tight text-[#0f172f]">
+              Pixel<span className="text-[#28457a]">Vault</span>
+            </h2>
           </div>
 
-          <div className="flex gap-3">
+          {/* Nav links */}
+          <nav className="hidden items-center gap-8 lg:flex">
+            <Link to="/" className="text-sm font-medium text-slate-500 transition-colors hover:text-[#0f172f]">Home</Link>
+            <Link to="/images" className="text-sm font-medium text-slate-500 transition-colors hover:text-[#0f172f]">Images</Link>
+          </nav>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-3">
+            {selectedIds.size > 0 && (
+              <button
+                onClick={handleDeleteSelected}
+                className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-100 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+              >
+                <Trash2 size={16} />
+                <span>Delete ({selectedIds.size})</span>
+              </button>
+            )}
 
             <button
-              onClick={handleLogout}
-              className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white hover:bg-red-700"
+              onClick={() => setShowUploadModal(true)}
+              className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
             >
-              Log out
+              <Upload size={16} />
+              <span className="hidden sm:inline">Upload</span>
             </button>
 
             <button
               onClick={() => navigate("/user-profile")}
-              className="rounded-2xl bg-[#000d33] px-5 py-3 text-sm font-semibold text-white hover:bg-[#00154d]"
+              className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-[#0f172f] transition hover:bg-slate-200"
             >
-              User Profile
+              <User size={16} />
+              <span className="hidden sm:inline">Profile</span>
             </button>
 
             <button
-              onClick={() => setShowUploadModal(true)}
-              className="rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
+              onClick={handleLogout}
+              className="group flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-red-100 hover:bg-red-50 hover:text-red-600"
             >
-              + Upload Image
+              <LogOut size={16} className="transition-transform group-hover:-translate-x-0.5" />
+              <span className="hidden sm:inline">Logout</span>
             </button>
-
-            {selectedIds.size > 0 && (
-              <button
-                onClick={handleDeleteSelected}
-                className="rounded-2xl bg-red-500 px-5 py-3 text-sm font-semibold text-white hover:bg-red-600"
-              >
-                Delete Selected ({selectedIds.size})
-              </button>
-            )}
-
           </div>
-        </header>
+
+        </div>
+      </header>
+
+      <main className="min-h-screen bg-[#f6f7fb] px-6 pb-8 text-slate-900 sm:px-10 lg:px-16">
+
+      {/* Page Title */}
+      <div className="mx-auto w-full max-w-[1400px] pt-28 pb-0">
+        <div className="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#64748b]">User dashboard</p>
+          <h1 className="mt-2 text-[34px] font-bold text-[#0f172f] sm:text-[44px]">Themed Image Gallery</h1>
+          <p className="mt-2 max-w-[760px] text-[17px] text-[#64748b]">Browse sample images organized by theme.</p>
+        </div>
       </div>
 
       {/* Image Section */}
@@ -464,7 +479,8 @@ function UserHomePage() {
         </div>
       )}
 
-    </main>
+      </main>
+    </>
   );
 }
 
