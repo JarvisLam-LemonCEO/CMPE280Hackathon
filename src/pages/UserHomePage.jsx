@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { allThemeImages, themeById, themeData } from "../data/galleryData";
-import { Image as ImageIcon, LogOut, User, Trash2, Upload } from "lucide-react";
+import { Image as ImageIcon, LogOut, User, Trash2, Upload, Search } from "lucide-react";
 import "/src/UserHomePage.css";
 
 const UPLOAD_STORAGE_KEY_PREFIX = "userGalleryUploadsV1";
@@ -280,20 +280,14 @@ function UserHomePage() {
         <div className="flex w-full max-w-[1440px] items-center justify-between px-6 sm:px-10 lg:px-16">
 
           {/* Logo */}
-          <div className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#000d33] to-[#28457a] shadow-lg">
               <ImageIcon size={20} className="text-white" />
             </div>
             <h2 className="text-[20px] font-bold tracking-tight text-[#0f172f]">
               Pixel<span className="text-[#28457a]">Vault</span>
             </h2>
-          </div>
-
-          {/* Nav links */}
-          <nav className="hidden items-center gap-8 lg:flex">
-            <Link to="/" className="text-sm font-medium text-slate-500 transition-colors hover:text-[#0f172f]">Home</Link>
-            <Link to="/images" className="text-sm font-medium text-slate-500 transition-colors hover:text-[#0f172f]">Images</Link>
-          </nav>
+          </Link>
 
           {/* Action buttons */}
           <div className="flex items-center gap-3">
@@ -343,6 +337,17 @@ function UserHomePage() {
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#64748b]">User dashboard</p>
           <h1 className="mt-2 text-[34px] font-bold text-[#0f172f] sm:text-[44px]">Themed Image Gallery</h1>
           <p className="mt-2 max-w-[760px] text-[17px] text-[#64748b]">Browse sample images organized by theme.</p>
+
+          <div className="relative mt-6 max-w-[520px]">
+            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search images by title or description..."
+              className="h-[48px] w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-slate-700 outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400"
+            />
+          </div>
         </div>
       </div>
 

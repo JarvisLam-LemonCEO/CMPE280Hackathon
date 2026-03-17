@@ -96,13 +96,13 @@ export default function App() {
 
             <nav className="hidden items-center gap-8 lg:flex">
               {["Features", "Cloud", "Preview"].map((item) => (
-                  <a
+                  <button
                       key={item}
-                      href={`#${item.toLowerCase()}`}
+                      onClick={() => document.getElementById(item.toLowerCase())?.scrollIntoView({ behavior: "smooth" })}
                       className="text-sm font-medium text-slate-500 transition-colors hover:text-[#0f172f]"
                   >
                     {item}
-                  </a>
+                  </button>
               ))}
             </nav>
 
@@ -287,8 +287,68 @@ export default function App() {
             </div>
           </section>
 
+          {/* Cloud Section */}
+          <section id="cloud" className="relative bg-white py-20 sm:py-28">
+            <div className="mx-auto w-full max-w-[1440px] px-6 sm:px-10 lg:px-16">
+              <div className="flex flex-col items-center gap-12 lg:flex-row lg:gap-20">
+
+                <div className="flex-1">
+                  <p className="text-sm font-bold uppercase tracking-[0.15em] text-[#28457a]">Cloud Storage</p>
+                  <h2 className="mt-4 text-[36px] font-extrabold tracking-tight text-[#0f172f] sm:text-[44px]">
+                    Your memories, safe and always accessible.
+                  </h2>
+                  <p className="mt-5 text-[18px] leading-relaxed text-[#64748b]">
+                    Every photo you upload is securely stored in the cloud with unlimited backup. Access your full library from any device, anywhere in the world — no storage limits, no compromise.
+                  </p>
+
+                  <ul className="mt-8 space-y-4">
+                    {[
+                      "Unlimited cloud backup for all your photos",
+                      "Cross-device sync in real time",
+                      "99.9% uptime with encrypted storage",
+                      "Instant restore from any point in time",
+                    ].map((item) => (
+                      <li key={item} className="flex items-center gap-3 text-[16px] text-[#0f172f]">
+                        <CheckCircle2 size={20} className="shrink-0 text-[#28457a]" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="flex-1 w-full">
+                  <div className="rounded-[32px] bg-white p-8 shadow-[0_8px_40px_rgba(15,23,47,0.08)] ring-1 ring-slate-200">
+                    <div className="flex items-center gap-4 border-b border-slate-100 pb-6">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#000d33] to-[#28457a]">
+                        <ImageIcon size={26} className="text-white" />
+                      </div>
+                      <div>
+                        <p className="text-[18px] font-bold text-[#0f172f]">PixelVault Cloud</p>
+                        <p className="text-sm text-[#64748b]">Unlimited · Encrypted · Always on</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 grid grid-cols-3 gap-4 text-center">
+                      {[
+                        { value: "10k+", label: "Photos stored" },
+                        { value: "∞", label: "Cloud backup" },
+                        { value: "99.9%", label: "Uptime" },
+                      ].map((stat) => (
+                        <div key={stat.label} className="rounded-2xl bg-[#f6f7fb] px-4 py-5">
+                          <p className="text-[28px] font-extrabold text-[#0f172f]">{stat.value}</p>
+                          <p className="mt-1 text-xs font-medium text-[#64748b]">{stat.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </section>
+
           {/* Features Section */}
-          <section id="features" className="relative bg-white py-20 sm:py-28">
+          <section id="features" className="relative bg-[#f6f7fb] py-20 sm:py-28">
             <div className="mx-auto w-full max-w-[1440px] px-6 sm:px-10 lg:px-16">
               <div className="max-w-[720px]">
                 <p className="text-sm font-bold uppercase tracking-[0.15em] text-[#28457a]">
@@ -328,7 +388,7 @@ export default function App() {
           </section>
 
           {/* Benefits Section */}
-          <section id="benefits" className="py-20 sm:py-28 bg-[#f6f7fb]">
+          <section id="benefits" className="py-20 sm:py-28 bg-white">
             <div className="mx-auto w-full max-w-[1440px] px-6 sm:px-10 lg:px-16">
               <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
 
