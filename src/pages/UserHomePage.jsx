@@ -153,6 +153,13 @@ function UserHomePage() {
   const [uploadFile, setUploadFile] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [hiddenGalleryIds, setHiddenGalleryIds] = useState(() => {
+    try {
+      const raw = localStorage.getItem("hiddenGalleryIds");
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch { return new Set(); }
+  });
 
   useEffect(() => {
     const storedUser = localStorage.getItem("currentUser");
@@ -172,7 +179,8 @@ function UserHomePage() {
     );
 
     if (activeTheme === "all") {
-      return [...sortedUploads, ...allThemeImages];
+      const galleryImages = allThemeImages.filter((img) => !hiddenGalleryIds.has(img.id));
+      return [...sortedUploads, ...galleryImages];
     }
 
     const selectedTheme = themeById[activeTheme];
@@ -184,12 +192,11 @@ function UserHomePage() {
 
     return [
       ...uploadsForTheme,
-      ...selectedTheme.images.map((image) => ({
-        ...image,
-        themeLabel: selectedTheme.label,
-      })),
+      ...selectedTheme.images
+        .filter((img) => !hiddenGalleryIds.has(img.id))
+        .map((image) => ({ ...image, themeLabel: selectedTheme.label })),
     ];
-  }, [activeTheme, uploadedImages]);
+  }, [activeTheme, uploadedImages, hiddenGalleryIds]);
 
   const filteredImages = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -207,6 +214,28 @@ function UserHomePage() {
     window.localStorage.setItem(userUploadsKey, JSON.stringify(uploadedImages));
   }, [uploadedImages, userUploadsKey]);
 
+  useEffect(() => {
+    localStorage.setItem("hiddenGalleryIds", JSON.stringify([...hiddenGalleryIds]));
+  }, [hiddenGalleryIds]);
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    const uploadedIds = new Set(uploadedImages.map((img) => img.id));
+    const toHide = [...selectedIds].filter((id) => !uploadedIds.has(id));
+    setUploadedImages((prev) => prev.filter((img) => !selectedIds.has(img.id)));
+    if (toHide.length > 0) {
+      setHiddenGalleryIds((prev) => new Set([...prev, ...toHide]));
+    }
+    setSelectedIds(new Set());
+  };
+
   async function handleUploadSubmit(event) {
     event.preventDefault();
 
@@ -216,7 +245,7 @@ function UserHomePage() {
     const now = Date.now();
 
     const newUpload = {
-      id: `upload-${now}`,
+      id: `upload-${uploadTheme}-${now}`,
       title: uploadTitle.trim(),
       subtitle: uploadDescription.trim(),
       url: dataUrl,
@@ -289,6 +318,15 @@ function UserHomePage() {
               + Upload Image
             </button>
 
+            {selectedIds.size > 0 && (
+              <button
+                onClick={handleDeleteSelected}
+                className="rounded-2xl bg-red-500 px-5 py-3 text-sm font-semibold text-white hover:bg-red-600"
+              >
+                Delete Selected ({selectedIds.size})
+              </button>
+            )}
+
           </div>
         </header>
       </div>
@@ -299,17 +337,27 @@ function UserHomePage() {
 
         <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
 
-          {filteredImages.map((image) => (
+          {filteredImages.map((image) => {
+            const isSelected = selectedIds.has(image.id);
+            return (
             <article
               key={image.id}
-              className="overflow-hidden rounded-[24px] bg-white ring-1 ring-slate-200"
+              className={`overflow-hidden rounded-[24px] bg-white ring-2 ${isSelected ? "ring-indigo-500" : "ring-slate-200"}`}
             >
 
-              <img
-                src={image.url}
-                alt={image.title}
-                className="h-[240px] w-full object-cover"
-              />
+              <div className="relative">
+                <img
+                  src={image.url}
+                  alt={image.title}
+                  className="h-[240px] w-full object-cover"
+                />
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleSelect(image.id)}
+                  className="absolute top-3 right-3 h-5 w-5 cursor-pointer accent-indigo-600"
+                />
+              </div>
 
               <div className="space-y-2 p-4">
 
@@ -329,7 +377,8 @@ function UserHomePage() {
 
               </div>
             </article>
-          ))}
+            );
+          })}
 
         </div>
 
