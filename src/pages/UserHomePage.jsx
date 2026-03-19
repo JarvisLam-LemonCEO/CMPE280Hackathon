@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { allThemeImages, themeById, themeData } from "../data/galleryData";
+import { ThemeToggle } from "../ThemeContext";
 import { Image as ImageIcon, LogOut, User, Trash2, Upload, Search } from "lucide-react";
 import "/src/UserHomePage.css";
 
@@ -69,26 +70,42 @@ const ImageWithComments = ({ image }) => {
   };
 
   return (
-    <div className="mt-4">
-      {/* Comment Input Section */}
-      <div className="rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 p-3 border border-slate-200">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Add a comment..."
-            className="h-[40px] w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 placeholder:text-slate-400 outline-none transition focus:border-[#28457a] focus:shadow-sm focus:shadow-[#28457a]/20"
-          />
-          <button
-            onClick={handleAddComment}
-            disabled={!comment.trim()}
-            className="rounded-lg bg-[#28457a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1d3456] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+    <div className="mt-3">
+
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Add a comment..."
+          className="h-[44px] w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 text-sm text-slate-700 dark:text-slate-200 outline-none"
+        />
+
+        <button
+          onClick={handleAddComment}
+          className="rounded-xl bg-[#000d33] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#00154d]"
+        >
+          Post
+        </button>
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {commentList.map((c, i) => (
+          <div
+            key={i}
+            className="flex items-center justify-between rounded-xl bg-[#f8fafc] dark:bg-slate-800 px-3 py-2"
           >
-            Post
-          </button>
-        </div>
+            <p className="text-sm text-slate-700 dark:text-slate-300">{c}</p>
+
+            <button
+              onClick={() => handleDeleteComment(i)}
+              className="rounded-lg bg-red-500 px-3 py-1 text-xs font-semibold text-white hover:bg-red-600"
+            >
+              Delete
+            </button>
+          </div>
+        ))}
       </div>
 
       {/* Comments List */}
@@ -312,7 +329,9 @@ function UserHomePage() {
       {/* Fixed Navbar */}
       <header
         className={`fixed top-0 z-50 flex w-full justify-center transition-all duration-300 ${
-          isScrolled ? "bg-white/80 backdrop-blur-md shadow-sm py-4" : "bg-white py-6 shadow-sm"
+          isScrolled
+            ? "bg-white/80 dark:bg-[#222b45]/80 backdrop-blur-md shadow-sm py-4"
+            : "bg-white dark:bg-[#222b45] py-6 shadow-sm dark:shadow-slate-900"
         }`}
       >
         <div className="flex w-full max-w-[1440px] items-center justify-between px-6 sm:px-10 lg:px-16">
@@ -322,7 +341,7 @@ function UserHomePage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#000d33] to-[#28457a] shadow-lg">
               <ImageIcon size={20} className="text-white" />
             </div>
-            <h2 className="text-[20px] font-bold tracking-tight text-[#0f172f]">
+            <h2 className="text-[20px] font-bold tracking-tight text-[#0f172f] dark:text-white">
               Pixel<span className="text-[#28457a]">Vault</span>
             </h2>
           </Link>
@@ -349,15 +368,17 @@ function UserHomePage() {
 
             <button
               onClick={() => navigate("/user-profile")}
-              className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-[#0f172f] transition hover:bg-slate-200"
+              className="flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-[#0f172f] dark:text-white transition hover:bg-slate-200 dark:hover:bg-slate-700"
             >
               <User size={16} />
               <span className="hidden sm:inline">Profile</span>
             </button>
 
+            <ThemeToggle />
+
             <button
               onClick={handleLogout}
-              className="group flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-red-100 hover:bg-red-50 hover:text-red-600"
+              className="group flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 shadow-sm transition hover:border-red-100 dark:hover:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400"
             >
               <LogOut size={16} className="transition-transform group-hover:-translate-x-0.5" />
               <span className="hidden sm:inline">Logout</span>
@@ -367,14 +388,14 @@ function UserHomePage() {
         </div>
       </header>
 
-      <main className="min-h-screen bg-[#f6f7fb] px-6 pb-8 text-slate-900 sm:px-10 lg:px-16">
+      <main className="min-h-screen bg-[#f6f7fb] dark:bg-[#1a2035] px-6 pb-8 text-slate-900 dark:text-white sm:px-10 lg:px-16">
 
       {/* Page Title */}
-      <div className="mx-auto w-full max-w-[1400px] pt-28 pb-0">
-        <div className="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#64748b]">User dashboard</p>
-          <h1 className="mt-2 text-[34px] font-bold text-[#0f172f] sm:text-[44px]">Themed Image Gallery</h1>
-          <p className="mt-2 max-w-[760px] text-[17px] text-[#64748b]">Browse sample images organized by theme.</p>
+      <div className="page-container pt-28 pb-0">
+        <div className="section-card">
+          <p className="page-label">User dashboard</p>
+          <h1 className="page-title">Themed Image Gallery</h1>
+          <p className="mt-2 max-w-[760px] text-[17px] text-[#64748b] dark:text-slate-400">Browse sample images organized by theme.</p>
 
           <div className="relative mt-6 max-w-[520px]">
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -383,7 +404,7 @@ function UserHomePage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search images by title or description..."
-              className="h-[48px] w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-slate-700 outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400"
+              className="h-[48px] w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-11 pr-4 text-sm text-slate-700 dark:text-slate-200 outline-none transition focus:border-indigo-300 focus:bg-white dark:focus:bg-slate-700 focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
           </div>
         </div>
@@ -391,7 +412,7 @@ function UserHomePage() {
 
       {/* Image Section */}
 
-      <section className="mx-auto mt-8 w-full max-w-[1400px] rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-8">
+      <section className="page-container mt-8 section-card">
 
         <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
 
@@ -400,7 +421,7 @@ function UserHomePage() {
             return (
             <article
               key={image.id}
-              className={`overflow-hidden rounded-[24px] bg-white ring-2 ${isSelected ? "ring-indigo-500" : "ring-slate-200"}`}
+              className={`overflow-hidden rounded-[24px] bg-white dark:bg-[#2a3655] ring-2 ${isSelected ? "ring-indigo-500" : "ring-slate-200 dark:ring-slate-700"}`}
             >
 
               <div className="relative">
@@ -423,11 +444,11 @@ function UserHomePage() {
                   {image.themeLabel}
                 </span>
 
-                <h2 className="text-[20px] font-bold text-[#0f172f]">
+                <h2 className="text-[20px] font-bold text-[#0f172f] dark:text-white">
                   {image.title}
                 </h2>
 
-                <p className="text-sm text-[#64748b]">
+                <p className="text-sm text-[#64748b] dark:text-slate-400">
                   {image.subtitle}
                 </p>
 
@@ -445,44 +466,44 @@ function UserHomePage() {
       {/* Upload Modal */}
 
       {showUploadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-[500px] rounded-[28px] bg-white p-8 shadow-xl">
+        <div className="modal-overlay">
+          <div className="w-full max-w-[500px] rounded-[28px] bg-white dark:bg-[#2a3655] p-8 shadow-xl">
 
-            <h2 className="text-[24px] font-bold text-[#0f172f]">Upload Image</h2>
-            <p className="mt-1 text-sm text-[#64748b]">Add a new image to the gallery.</p>
+            <h2 className="text-[24px] font-bold text-[#0f172f] dark:text-white">Upload Image</h2>
+            <p className="modal-subtitle">Add a new image to the gallery.</p>
 
             <form className="mt-6 space-y-4" onSubmit={handleUploadSubmit}>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-[#324767]">Title</label>
+                <label className="form-label">Title</label>
                 <input
                   type="text"
                   placeholder="Image title"
                   value={uploadTitle}
                   onChange={(e) => setUploadTitle(e.target.value)}
-                  className="h-[44px] w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none"
+                  className="form-input"
                   required
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-[#324767]">Description</label>
+                <label className="form-label">Description</label>
                 <input
                   type="text"
                   placeholder="Short description"
                   value={uploadDescription}
                   onChange={(e) => setUploadDescription(e.target.value)}
-                  className="h-[44px] w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none"
+                  className="form-input"
                   required
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-[#324767]">Theme</label>
+                <label className="form-label">Theme</label>
                 <select
                   value={uploadTheme}
                   onChange={(e) => setUploadTheme(e.target.value)}
-                  className="h-[44px] w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none"
+                  className="form-input"
                 >
                   {themeData.map((theme) => (
                     <option key={theme.id} value={theme.id}>{theme.label}</option>
@@ -491,7 +512,7 @@ function UserHomePage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-[#324767]">Image File</label>
+                <label className="form-label">Image File</label>
                 <input
                   type="file"
                   accept="image/*"
@@ -505,7 +526,7 @@ function UserHomePage() {
                 <button
                   type="button"
                   onClick={() => setShowUploadModal(false)}
-                  className="h-[48px] w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  className="h-[48px] w-1/2 rounded-2xl border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 >
                   Cancel
                 </button>

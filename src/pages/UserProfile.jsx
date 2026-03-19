@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ThemeToggle } from "../ThemeContext";
 
 const PROFILE_PICTURE_KEY_PREFIX = "userProfilePictureV1";
 const UPLOAD_STORAGE_KEY_PREFIX = "userGalleryUploadsV1";
@@ -247,31 +248,32 @@ export default function UserProfile() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] px-6 py-8 text-slate-900 sm:px-10 lg:px-16">
-      <section className="mx-auto w-full max-w-[1000px] rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-8">
+    <main className="min-h-screen bg-[#f6f7fb] dark:bg-[#1a2035] px-6 py-8 text-slate-900 dark:text-white sm:px-10 lg:px-16">
+      {/* Theme toggle fixed top-right */}
+      <div className="fixed top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
+      <section className="mx-auto w-full max-w-[1000px] section-card">
         <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#64748b]">
-              User profile
-            </p>
-            <h1 className="mt-2 text-[34px] font-bold tracking-[-0.03em] text-[#0f172f] sm:text-[44px]">
-              Manage Your Profile
-            </h1>
-            <p className="mt-2 max-w-[700px] text-[17px] leading-7 text-[#64748b]">
+            <p className="page-label">User profile</p>
+            <h1 className="page-title tracking-[-0.03em]">Manage Your Profile</h1>
+            <p className="mt-2 max-w-[700px] text-[17px] leading-7 text-[#64748b] dark:text-slate-400">
               Update your profile image, email, password, or remove your account.
             </p>
           </div>
 
           <button
             onClick={() => navigate("/user-home")}
-            className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            className="rounded-2xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-5 py-3 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-700"
           >
             Cancel
           </button>
         </div>
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[320px_1fr]">
-          <div className="rounded-[24px] bg-[#f8fafc] p-6 ring-1 ring-slate-200">
+          <div className="rounded-[24px] bg-[#f8fafc] dark:bg-slate-800 p-6 ring-1 ring-slate-200 dark:ring-slate-700">
             <div className="flex flex-col items-center">
               {profileImage ? (
                 <img
@@ -285,11 +287,11 @@ export default function UserProfile() {
                 </div>
               )}
 
-              <h2 className="mt-5 break-all text-center text-xl font-bold text-[#0f172f]">
+              <h2 className="mt-5 break-all text-center text-xl font-bold text-[#0f172f] dark:text-white">
                 {currentUser?.email || "User"}
               </h2>
 
-              <label className="mt-5 block w-full text-sm font-medium text-slate-700">
+              <label className="mt-5 block w-full text-sm font-medium text-slate-700 dark:text-slate-300">
                 Upload Profile Picture
                 <input
                   type="file"
@@ -297,20 +299,20 @@ export default function UserProfile() {
                   onChange={(event) =>
                     setSelectedFile(event.target.files?.[0] || null)
                   }
-                  className="mt-2 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="mt-2 block w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm dark:text-slate-300"
                 />
               </label>
 
               <button
                 onClick={handleSaveProfileImage}
-                className="mt-4 w-full rounded-xl bg-[#000d33] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#00154d]"
+                className="mt-4 w-full btn-primary"
               >
                 Save Profile Picture
               </button>
 
               <button
                 onClick={handleDeleteProfilePhoto}
-                className="mt-3 w-full rounded-xl border border-red-500 bg-white px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                className="mt-3 w-full rounded-xl border border-red-500 bg-white dark:bg-transparent px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50 dark:hover:bg-red-900/20"
               >
                 Delete Profile Photo
               </button>
@@ -318,41 +320,32 @@ export default function UserProfile() {
           </div>
 
           <div className="space-y-5">
-            <div className="rounded-[24px] bg-white p-6 ring-1 ring-slate-200">
-              <h3 className="text-xl font-bold text-[#0f172f]">Account Details</h3>
+            <div className="inner-card">
+              <h3 className="text-xl font-bold text-[#0f172f] dark:text-white">Account Details</h3>
               <div className="mt-4 space-y-3">
-                <div className="rounded-xl bg-[#f8fafc] px-4 py-3">
-                  <p className="text-sm text-[#64748b]">Email</p>
-                  <p className="mt-1 break-all font-semibold text-[#0f172f]">
+                <div className="rounded-xl bg-[#f8fafc] dark:bg-slate-800 px-4 py-3">
+                  <p className="text-sm text-[#64748b] dark:text-slate-400">Email</p>
+                  <p className="mt-1 break-all font-semibold text-[#0f172f] dark:text-white">
                     {currentUser?.email || "No email"}
                   </p>
                 </div>
               </div>
-
               <div className="mt-5">
-                <button
-                  onClick={() => setShowEmailModal(true)}
-                  className="rounded-xl bg-[#000d33] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#00154d]"
-                >
+                <button onClick={() => setShowEmailModal(true)} className="btn-primary">
                   Change Email
                 </button>
               </div>
             </div>
 
-            <div className="rounded-[24px] bg-white p-6 ring-1 ring-slate-200">
-              <h3 className="text-xl font-bold text-[#0f172f]">Security</h3>
-              <p className="mt-2 text-sm text-[#64748b]">
+            <div className="inner-card">
+              <h3 className="text-xl font-bold text-[#0f172f] dark:text-white">Security</h3>
+              <p className="mt-2 text-sm text-[#64748b] dark:text-slate-400">
                 Change your password or permanently remove your account.
               </p>
-
               <div className="mt-5 flex flex-wrap gap-3">
-                <button
-                  onClick={() => setShowPasswordModal(true)}
-                  className="rounded-xl bg-[#000d33] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#00154d]"
-                >
+                <button onClick={() => setShowPasswordModal(true)} className="btn-primary">
                   Change Password
                 </button>
-
                 <button
                   onClick={() => setShowDeleteModal(true)}
                   className="rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700"
@@ -366,38 +359,27 @@ export default function UserProfile() {
       </section>
 
       {showEmailModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-200">
-            <h2 className="text-xl font-bold text-[#0f172f]">Change Email</h2>
-            <p className="mt-1 text-sm text-[#64748b]">
-              Enter your new email address below.
-            </p>
-
-            <label className="mt-5 block text-sm font-medium text-slate-700">
+        <div className="modal-overlay">
+          <div className="modal-box">
+            <h2 className="modal-title">Change Email</h2>
+            <p className="modal-subtitle">Enter your new email address below.</p>
+            <label className="mt-5 block text-sm font-medium text-slate-700 dark:text-slate-300">
               New Email
               <input
                 type="email"
                 value={newEmail}
                 onChange={(event) => setNewEmail(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="form-input-modal"
               />
             </label>
-
             <div className="mt-6 flex justify-end gap-3">
               <button
-                onClick={() => {
-                  setShowEmailModal(false);
-                  setNewEmail(currentUser?.email || "");
-                }}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                onClick={() => { setShowEmailModal(false); setNewEmail(currentUser?.email || ""); }}
+                className="btn-cancel"
               >
                 Cancel
               </button>
-
-              <button
-                onClick={handleChangeEmail}
-                className="rounded-xl bg-[#000d33] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#00154d]"
-              >
+              <button onClick={handleChangeEmail} className="btn-primary-sm">
                 Change
               </button>
             </div>
@@ -406,62 +388,47 @@ export default function UserProfile() {
       ) : null}
 
       {showPasswordModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-200">
-            <h2 className="text-xl font-bold text-[#0f172f]">Change Password</h2>
-            <p className="mt-1 text-sm text-[#64748b]">
-              Enter your old password and choose a new one.
-            </p>
-
+        <div className="modal-overlay">
+          <div className="modal-box">
+            <h2 className="modal-title">Change Password</h2>
+            <p className="modal-subtitle">Enter your old password and choose a new one.</p>
             <div className="mt-5 space-y-4">
-              <label className="block text-sm font-medium text-slate-700">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Old Password
                 <input
                   type="password"
                   value={oldPassword}
                   onChange={(event) => setOldPassword(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="form-input-modal"
                 />
               </label>
-
-              <label className="block text-sm font-medium text-slate-700">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 New Password
                 <input
                   type="password"
                   value={newPassword}
                   onChange={(event) => setNewPassword(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="form-input-modal"
                 />
               </label>
-
-              <label className="block text-sm font-medium text-slate-700">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Confirm New Password
                 <input
                   type="password"
                   value={confirmNewPassword}
                   onChange={(event) => setConfirmNewPassword(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="form-input-modal"
                 />
               </label>
             </div>
-
             <div className="mt-6 flex justify-end gap-3">
               <button
-                onClick={() => {
-                  setShowPasswordModal(false);
-                  setOldPassword("");
-                  setNewPassword("");
-                  setConfirmNewPassword("");
-                }}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                onClick={() => { setShowPasswordModal(false); setOldPassword(""); setNewPassword(""); setConfirmNewPassword(""); }}
+                className="btn-cancel"
               >
                 Cancel
               </button>
-
-              <button
-                onClick={handleChangePassword}
-                className="rounded-xl bg-[#000d33] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#00154d]"
-              >
+              <button onClick={handleChangePassword} className="btn-primary-sm">
                 Change
               </button>
             </div>
@@ -470,46 +437,36 @@ export default function UserProfile() {
       ) : null}
 
       {showDeleteModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-200">
-            <h2 className="text-xl font-bold text-[#0f172f]">Delete Account</h2>
-            <p className="mt-2 text-sm leading-6 text-[#64748b]">
+        <div className="modal-overlay">
+          <div className="modal-box">
+            <h2 className="modal-title">Delete Account</h2>
+            <p className="mt-2 text-sm leading-6 text-[#64748b] dark:text-slate-400">
               Type{" "}
-              <span className="font-semibold text-[#0f172f]">
-                delete account
-              </span>{" "}
+              <span className="font-semibold text-[#0f172f] dark:text-white">delete account</span>{" "}
               to confirm permanent deletion.
             </p>
-
-            <label className="mt-5 block text-sm font-medium text-slate-700">
+            <label className="mt-5 block text-sm font-medium text-slate-700 dark:text-slate-300">
               Confirmation Text
               <input
                 type="text"
                 value={deleteText}
                 onChange={(event) => setDeleteText(event.target.value)}
                 placeholder='Type "delete account"'
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="form-input-modal"
               />
             </label>
-
             <div className="mt-6 flex justify-end gap-3">
               <button
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setDeleteText("");
-                }}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                onClick={() => { setShowDeleteModal(false); setDeleteText(""); }}
+                className="btn-cancel"
               >
                 Cancel
               </button>
-
               <button
                 onClick={handleDeleteAccount}
                 disabled={!isDeleteMatch}
                 className={`rounded-xl px-4 py-2 text-sm font-semibold text-white transition ${
-                  isDeleteMatch
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "cursor-not-allowed bg-gray-400"
+                  isDeleteMatch ? "bg-red-600 hover:bg-red-700" : "cursor-not-allowed bg-gray-400"
                 }`}
               >
                 Delete

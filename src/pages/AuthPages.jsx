@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { ThemeToggle } from "../ThemeContext";
 
 
 export default function AuthPage() {
@@ -20,7 +21,7 @@ export default function AuthPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const inputClass =
-    "h-14 w-full rounded-[20px] border border-slate-200 bg-white px-14 pr-12 text-[16px] text-slate-700 outline-none placeholder:text-slate-400";
+    "h-14 w-full rounded-[20px] border border-slate-200 dark:border-slate-400 bg-white dark:bg-slate-800 px-14 pr-12 text-[16px] text-slate-700 dark:text-slate-200 outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500";
 
   const resetVisibility = () => {
     setShowPassword(false);
@@ -100,16 +101,21 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-[#f3f3f3] px-6">
-      <div className="w-full max-w-[520px]">
-        <div className="mb-10 flex w-full rounded-[18px] bg-[#e9edf2] p-1">
+    <div className="flex min-h-screen w-full items-center justify-center bg-[#f3f3f3] dark:bg-[#1a2035] px-6">
+      {/* Theme toggle fixed top-right */}
+      <div className="fixed top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
+      <div className="w-full max-w-[520px] rounded-4xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#222b45] p-10 shadow-xl">
+        <div className="mb-10 flex w-full rounded-[18px] bg-[#e9edf2] dark:bg-slate-800 p-1">
           <button
             type="button"
             onClick={goToLogin}
             className={`h-[54px] w-1/2 rounded-[16px] font-semibold transition ${
               mode === "login"
-                ? "bg-white text-[#0f172f] shadow"
-                : "text-[#64748b]"
+                ? "bg-white dark:bg-slate-700 text-[#0f172f] dark:text-white shadow"
+                : "text-[#64748b] dark:text-slate-400"
             }`}
           >
             Login
@@ -120,8 +126,8 @@ export default function AuthPage() {
             onClick={goToSignup}
             className={`h-[54px] w-1/2 rounded-[16px] font-semibold transition ${
               mode === "signup"
-                ? "bg-white text-[#0f172f] shadow"
-                : "text-[#64748b]"
+                ? "bg-white dark:bg-slate-700 text-[#0f172f] dark:text-white shadow"
+                : "text-[#64748b] dark:text-slate-400"
             }`}
           >
             Sign Up
@@ -130,16 +136,16 @@ export default function AuthPage() {
 
         {mode === "login" && (
           <>
-            <h1 className="text-center text-[40px] font-bold text-[#0f172f]">
+            <h1 className="text-center text-[40px] font-bold text-[#0f172f] dark:text-white">
               Welcome back
             </h1>
-            <p className="mt-3 text-center text-[#7183a0]">
+            <p className="mt-3 text-center text-[#7183a0] dark:text-slate-400">
               Log in to access your image gallery dashboard.
             </p>
 
             <form className="mt-10 space-y-6" onSubmit={handleLogin}>
               <div>
-                <label className="mb-2 block font-medium text-[#324767]">
+                <label className="mb-2 block font-medium text-[#324767] dark:text-slate-300">
                   Email
                 </label>
                 <div className="relative">
@@ -155,7 +161,7 @@ export default function AuthPage() {
               </div>
 
               <div>
-                <label className="mb-2 block font-medium text-[#324767]">
+                <label className="mb-2 block font-medium text-[#324767] dark:text-slate-300">
                   Password
                 </label>
                 <div className="relative">
@@ -191,7 +197,7 @@ export default function AuthPage() {
                 <button
                   type="button"
                   onClick={() => navigate("/")}
-                  className="h-[56px] w-1/2 rounded-[22px] border border-slate-300 font-semibold text-slate-700 hover:bg-slate-100"
+                  className="h-[56px] w-1/2 rounded-[22px] border border-slate-300 dark:border-slate-600 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 >
                   Cancel
                 </button>
@@ -209,16 +215,16 @@ export default function AuthPage() {
 
         {mode === "signup" && (
           <>
-            <h1 className="text-center text-[40px] font-bold text-[#0f172f]">
+            <h1 className="text-center text-[40px] font-bold text-[#0f172f] dark:text-white">
               Create account
             </h1>
-            <p className="mt-3 text-center text-[#7183a0]">
+            <p className="mt-3 text-center text-[#7183a0] dark:text-slate-400">
               Sign up to create your gallery account.
             </p>
 
             <form className="mt-10 space-y-6" onSubmit={handleSignup}>
               <div>
-                <label className="mb-2 block font-medium text-[#324767]">
+                <label className="mb-2 block font-medium text-[#324767] dark:text-slate-300">
                   Email
                 </label>
                 <div className="relative">
@@ -234,7 +240,7 @@ export default function AuthPage() {
               </div>
 
               <div>
-                <label className="mb-2 block font-medium text-[#324767]">
+                <label className="mb-2 block font-medium text-[#324767] dark:text-slate-300">
                   Password
                 </label>
                 <div className="relative">
@@ -257,7 +263,7 @@ export default function AuthPage() {
               </div>
 
               <div>
-                <label className="mb-2 block font-medium text-[#324767]">
+                <label className="mb-2 block font-medium text-[#324767] dark:text-slate-300">
                   Confirm Password
                 </label>
                 <div className="relative">
@@ -289,7 +295,7 @@ export default function AuthPage() {
                 <button
                   type="button"
                   onClick={() => navigate("/")}
-                  className="h-[56px] w-1/2 rounded-[22px] border border-slate-300 font-semibold text-slate-700 hover:bg-slate-100"
+                  className="h-[56px] w-1/2 rounded-[22px] border border-slate-300 dark:border-slate-600 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 >
                   Cancel
                 </button>
