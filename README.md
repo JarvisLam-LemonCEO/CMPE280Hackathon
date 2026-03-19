@@ -8,7 +8,7 @@ Midterm · Hackathon · Final Project — Team 2, Group 7
 2. Hei Lam
 3. Henry Yang
 4. Saim Sheikh
-5. LuuThuy Luu
+5. Thuy Luu
 
 ---
 # Demo
