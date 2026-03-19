@@ -11,16 +11,68 @@ const UPLOAD_STORAGE_KEY_PREFIX = "userGalleryUploadsV1";
 /* Comment Component */
 /* ------------------------------------ */
 
+const formatCommentDate = (timestamp) => {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString(navigator.language, {
+    month: "short",
+    day: "numeric",
+    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+  });
+};
+
 const ImageWithComments = ({ image }) => {
   const storageKey = `comments-${image.id}`;
 
   const [comment, setComment] = useState("");
   const [commentList, setCommentList] = useState(() => {
     const saved = localStorage.getItem(storageKey);
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+
+    try {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+
+      // Support both legacy string comments and object comments.
+      return parsed
+        .map((item) => {
+          if (typeof item === "string") {
+            return { text: item, timestamp: Date.now() };
+          }
+
+          if (
+            item &&
+            typeof item === "object" &&
+            typeof item.text === "string"
+          ) {
+            return {
+              text: item.text,
+              timestamp:
+                typeof item.timestamp === "number"
+                  ? item.timestamp
+                  : Date.now(),
+            };
+          }
+
+          return null;
+        })
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
   });
 
-// Store comments locally
+  // Store comments locally
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(commentList));
   }, [commentList, storageKey]);
@@ -28,7 +80,13 @@ const ImageWithComments = ({ image }) => {
   const handleAddComment = () => {
     if (!comment.trim()) return;
 
-    setCommentList((prev) => [...prev, comment.trim()]);
+    setCommentList((prev) => [
+      ...prev,
+      {
+        text: comment.trim(),
+        timestamp: Date.now(),
+      },
+    ]);
     setComment("");
   };
 
@@ -44,44 +102,58 @@ const ImageWithComments = ({ image }) => {
   };
 
   return (
-    <div className="mt-3">
-
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Add a comment..."
-          className="h-[44px] w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 text-sm text-slate-700 dark:text-slate-200 outline-none"
-        />
-
-        <button
-          onClick={handleAddComment}
-          className="rounded-xl bg-[#000d33] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#00154d]"
-        >
-          Post
-        </button>
-      </div>
-
-      <div className="mt-3 space-y-2">
-        {commentList.map((c, i) => (
-          <div
-            key={i}
-            className="flex items-center justify-between rounded-xl bg-[#f8fafc] dark:bg-slate-800 px-3 py-2"
+    <div className="mt-4">
+      <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 dark:border-slate-700 dark:from-slate-800 dark:to-slate-900">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Add a comment..."
+            className="h-[40px] w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#28457a] focus:shadow-sm focus:shadow-[#28457a]/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-400"
+          />
+          <button
+            onClick={handleAddComment}
+            disabled={!comment.trim()}
+            className="whitespace-nowrap rounded-lg bg-[#28457a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1d3456] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <p className="text-sm text-slate-700 dark:text-slate-300">{c}</p>
-
-            <button
-              onClick={() => handleDeleteComment(i)}
-              className="rounded-lg bg-red-500 px-3 py-1 text-xs font-semibold text-white hover:bg-red-600"
-            >
-              Delete
-            </button>
-          </div>
-        ))}
+            Post
+          </button>
+        </div>
       </div>
 
+      <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
+        {commentList.length === 0 ? (
+          <p className="py-2 text-center text-xs text-slate-400 dark:text-slate-500">
+            No comments yet
+          </p>
+        ) : (
+          commentList.map((item, i) => (
+            <div
+              key={i}
+              className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md dark:border-slate-700 dark:bg-slate-800"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="break-words text-sm text-slate-700 dark:text-slate-200">
+                    {item.text}
+                  </p>
+                  <span className="mt-1 inline-block text-xs text-slate-400 dark:text-slate-500">
+                    {formatCommentDate(item.timestamp)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleDeleteComment(i)}
+                  className="flex-shrink-0 whitespace-nowrap rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 };
@@ -343,6 +415,7 @@ function UserHomePage() {
           <h1 className="page-title">Themed Image Gallery</h1>
           <p className="mt-2 max-w-[760px] text-[17px] text-[#64748b] dark:text-slate-400">Browse sample images organized by theme.</p>
 
+          {/* Search Bar */}
           <div className="relative mt-6 max-w-[520px]">
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
@@ -352,6 +425,38 @@ function UserHomePage() {
               placeholder="Search images by title or description..."
               className="h-[48px] w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-11 pr-4 text-sm text-slate-700 dark:text-slate-200 outline-none transition focus:border-indigo-300 focus:bg-white dark:focus:bg-slate-700 focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
+          </div>
+
+          {/* Theme Filter */}
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-slate-600 dark:text-slate-400">Filter:</span>
+            
+            {/* All Themes Button */}
+            <button
+              onClick={() => setActiveTheme("all")}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                activeTheme === "all"
+                  ? "bg-[#28457a] text-white shadow-md"
+                  : "border border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              }`}
+            >
+              All
+            </button>
+
+            {/* Individual Theme Buttons */}
+            {themeData.map((theme) => (
+              <button
+                key={theme.id}
+                onClick={() => setActiveTheme(theme.id)}
+                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                  activeTheme === theme.id
+                    ? `${theme.accentClass} shadow-md ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#1a2035] ring-slate-400 dark:ring-slate-600`
+                    : `border border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800`
+                }`}
+              >
+                {theme.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>

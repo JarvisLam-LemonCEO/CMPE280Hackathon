@@ -11,6 +11,9 @@ Midterm · Hackathon · Final Project — Team 2, Group 7
 5. LuuThuy Luu
 
 ---
+# Demo
+Link: https://cmpe-280-hackathon-lake.vercel.app/
+---
 
 ## Problem & Idea
 
@@ -93,26 +96,7 @@ src/
 
 ## Workflow
 
-```
-[Landing Page]
-    │
-    ├── Not logged in → [Auth Page] → Login / Sign Up
-    │                                      │
-    └── Logged in ──────────────────────── ▼
-                                    [User Dashboard]
-                                           │
-                                ┌──────────┴──────────┐
-                                │                     │
-                          Browse Gallery         Upload Image
-                          Search / Filter        (modal form)
-                          Add Comments
-                          Multi-select Delete
-                                │
-                           [User Profile]
-                          Change Email / Password
-                          Update Profile Photo
-                          Delete Account
-```
+![Architecture Diagram](workflow.png)
 
 ---
 
