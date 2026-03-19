@@ -415,6 +415,7 @@ function UserHomePage() {
           <h1 className="page-title">Themed Image Gallery</h1>
           <p className="mt-2 max-w-[760px] text-[17px] text-[#64748b] dark:text-slate-400">Browse sample images organized by theme.</p>
 
+          {/* Search Bar */}
           <div className="relative mt-6 max-w-[520px]">
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
@@ -424,6 +425,38 @@ function UserHomePage() {
               placeholder="Search images by title or description..."
               className="h-[48px] w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-11 pr-4 text-sm text-slate-700 dark:text-slate-200 outline-none transition focus:border-indigo-300 focus:bg-white dark:focus:bg-slate-700 focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
+          </div>
+
+          {/* Theme Filter */}
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-slate-600 dark:text-slate-400">Filter:</span>
+            
+            {/* All Themes Button */}
+            <button
+              onClick={() => setActiveTheme("all")}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                activeTheme === "all"
+                  ? "bg-[#28457a] text-white shadow-md"
+                  : "border border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              }`}
+            >
+              All
+            </button>
+
+            {/* Individual Theme Buttons */}
+            {themeData.map((theme) => (
+              <button
+                key={theme.id}
+                onClick={() => setActiveTheme(theme.id)}
+                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                  activeTheme === theme.id
+                    ? `${theme.accentClass} shadow-md ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#1a2035] ring-slate-400 dark:ring-slate-600`
+                    : `border border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800`
+                }`}
+              >
+                {theme.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
