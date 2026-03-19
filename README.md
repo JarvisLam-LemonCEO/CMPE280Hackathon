@@ -93,26 +93,7 @@ src/
 
 ## Workflow
 
-```
-[Landing Page]
-    │
-    ├── Not logged in → [Auth Page] → Login / Sign Up
-    │                                      │
-    └── Logged in ──────────────────────── ▼
-                                    [User Dashboard]
-                                           │
-                                ┌──────────┴──────────┐
-                                │                     │
-                          Browse Gallery         Upload Image
-                          Search / Filter        (modal form)
-                          Add Comments
-                          Multi-select Delete
-                                │
-                           [User Profile]
-                          Change Email / Password
-                          Update Profile Photo
-                          Delete Account
-```
+![Architecture Diagram](.workflow.png)
 
 ---
 
