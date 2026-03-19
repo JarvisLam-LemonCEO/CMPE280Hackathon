@@ -10,6 +10,26 @@ const UPLOAD_STORAGE_KEY_PREFIX = "userGalleryUploadsV1";
 /* Comment Component */
 /* ------------------------------------ */
 
+const formatCommentDate = (timestamp) => {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString(navigator.language, {
+    month: "short",
+    day: "numeric",
+    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+  });
+};
+
 const ImageWithComments = ({ image }) => {
   const storageKey = `comments-${image.id}`;
 
@@ -19,7 +39,7 @@ const ImageWithComments = ({ image }) => {
     return saved ? JSON.parse(saved) : [];
   });
 
-// Store comments locally
+  // Store comments locally
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(commentList));
   }, [commentList, storageKey]);
@@ -27,7 +47,13 @@ const ImageWithComments = ({ image }) => {
   const handleAddComment = () => {
     if (!comment.trim()) return;
 
-    setCommentList((prev) => [...prev, comment.trim()]);
+    setCommentList((prev) => [
+      ...prev,
+      {
+        text: comment.trim(),
+        timestamp: Date.now(),
+      },
+    ]);
     setComment("");
   };
 
@@ -43,44 +69,56 @@ const ImageWithComments = ({ image }) => {
   };
 
   return (
-    <div className="mt-3">
-
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Add a comment..."
-          className="h-[44px] w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none"
-        />
-
-        <button
-          onClick={handleAddComment}
-          className="rounded-xl bg-[#000d33] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#00154d]"
-        >
-          Post
-        </button>
-      </div>
-
-      <div className="mt-3 space-y-2">
-        {commentList.map((c, i) => (
-          <div
-            key={i}
-            className="flex items-center justify-between rounded-xl bg-[#f8fafc] px-3 py-2"
+    <div className="mt-4">
+      {/* Comment Input Section */}
+      <div className="rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 p-3 border border-slate-200">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Add a comment..."
+            className="h-[40px] w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 placeholder:text-slate-400 outline-none transition focus:border-[#28457a] focus:shadow-sm focus:shadow-[#28457a]/20"
+          />
+          <button
+            onClick={handleAddComment}
+            disabled={!comment.trim()}
+            className="rounded-lg bg-[#28457a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1d3456] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
-            <p className="text-sm text-slate-700">{c}</p>
-
-            <button
-              onClick={() => handleDeleteComment(i)}
-              className="rounded-lg bg-red-500 px-3 py-1 text-xs font-semibold text-white hover:bg-red-600"
-            >
-              Delete
-            </button>
-          </div>
-        ))}
+            Post
+          </button>
+        </div>
       </div>
 
+      {/* Comments List */}
+      <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
+        {commentList.length === 0 ? (
+          <p className="text-xs text-slate-400 text-center py-2">No comments yet</p>
+        ) : (
+          commentList.map((item, i) => (
+            <div
+              key={i}
+              className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-slate-700 break-words">{item.text}</p>
+                  <span className="text-xs text-slate-400 mt-1 inline-block">
+                    {formatCommentDate(item.timestamp)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleDeleteComment(i)}
+                  className="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition whitespace-nowrap flex-shrink-0"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 };
