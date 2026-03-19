@@ -11,6 +11,9 @@ Midterm · Hackathon · Final Project — Team 2, Group 7
 5. LuuThuy Luu
 
 ---
+# Demo
+Link: https://discord.com/channels/1466617346356547607/1466617347086221404/1483517320209895585
+---
 
 ## Problem & Idea
 
