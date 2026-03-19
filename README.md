@@ -12,7 +12,7 @@ Midterm · Hackathon · Final Project — Team 2, Group 7
 
 ---
 # Demo
-Link: https://discord.com/channels/1466617346356547607/1466617347086221404/1483517320209895585
+Link: https://cmpe-280-hackathon-lake.vercel.app/
 ---
 
 ## Problem & Idea
