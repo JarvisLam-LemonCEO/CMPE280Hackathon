@@ -37,7 +37,39 @@ const ImageWithComments = ({ image }) => {
   const [comment, setComment] = useState("");
   const [commentList, setCommentList] = useState(() => {
     const saved = localStorage.getItem(storageKey);
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+
+    try {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+
+      // Support both legacy string comments and object comments.
+      return parsed
+        .map((item) => {
+          if (typeof item === "string") {
+            return { text: item, timestamp: Date.now() };
+          }
+
+          if (
+            item &&
+            typeof item === "object" &&
+            typeof item.text === "string"
+          ) {
+            return {
+              text: item.text,
+              timestamp:
+                typeof item.timestamp === "number"
+                  ? item.timestamp
+                  : Date.now(),
+            };
+          }
+
+          return null;
+        })
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
   });
 
   // Store comments locally
@@ -70,64 +102,50 @@ const ImageWithComments = ({ image }) => {
   };
 
   return (
-    <div className="mt-3">
-
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Add a comment..."
-          className="h-[44px] w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 text-sm text-slate-700 dark:text-slate-200 outline-none"
-        />
-
-        <button
-          onClick={handleAddComment}
-          className="rounded-xl bg-[#000d33] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#00154d]"
-        >
-          Post
-        </button>
-      </div>
-
-      <div className="mt-3 space-y-2">
-        {commentList.map((c, i) => (
-          <div
-            key={i}
-            className="flex items-center justify-between rounded-xl bg-[#f8fafc] dark:bg-slate-800 px-3 py-2"
+    <div className="mt-4">
+      <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 dark:border-slate-700 dark:from-slate-800 dark:to-slate-900">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Add a comment..."
+            className="h-[40px] w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#28457a] focus:shadow-sm focus:shadow-[#28457a]/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-400"
+          />
+          <button
+            onClick={handleAddComment}
+            disabled={!comment.trim()}
+            className="whitespace-nowrap rounded-lg bg-[#28457a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1d3456] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <p className="text-sm text-slate-700 dark:text-slate-300">{c}</p>
-
-            <button
-              onClick={() => handleDeleteComment(i)}
-              className="rounded-lg bg-red-500 px-3 py-1 text-xs font-semibold text-white hover:bg-red-600"
-            >
-              Delete
-            </button>
-          </div>
-        ))}
+            Post
+          </button>
+        </div>
       </div>
 
-      {/* Comments List */}
-      <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
+      <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
         {commentList.length === 0 ? (
-          <p className="text-xs text-slate-400 text-center py-2">No comments yet</p>
+          <p className="py-2 text-center text-xs text-slate-400 dark:text-slate-500">
+            No comments yet
+          </p>
         ) : (
           commentList.map((item, i) => (
             <div
               key={i}
-              className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md transition-shadow"
+              className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md dark:border-slate-700 dark:bg-slate-800"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-slate-700 break-words">{item.text}</p>
-                  <span className="text-xs text-slate-400 mt-1 inline-block">
+                  <p className="break-words text-sm text-slate-700 dark:text-slate-200">
+                    {item.text}
+                  </p>
+                  <span className="mt-1 inline-block text-xs text-slate-400 dark:text-slate-500">
                     {formatCommentDate(item.timestamp)}
                   </span>
                 </div>
                 <button
                   onClick={() => handleDeleteComment(i)}
-                  className="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition whitespace-nowrap flex-shrink-0"
+                  className="flex-shrink-0 whitespace-nowrap rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
                 >
                   Delete
                 </button>
