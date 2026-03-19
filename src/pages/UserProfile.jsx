@@ -5,6 +5,8 @@ import { ThemeToggle } from "../ThemeContext";
 const PROFILE_PICTURE_KEY_PREFIX = "userProfilePictureV1";
 const UPLOAD_STORAGE_KEY_PREFIX = "userGalleryUploadsV1";
 
+const normalizeEmail = (email) => email.trim().toLowerCase();
+
 function getCurrentUser() {
   try {
     return JSON.parse(localStorage.getItem("currentUser"));
@@ -123,16 +125,17 @@ export default function UserProfile() {
 
     if (!currentUser?.email) return;
 
-    if (trimmedEmail === currentUser.email.trim().toLowerCase()) {
+    if (trimmedEmail === normalizeEmail(currentUser.email)) {
       setShowEmailModal(false);
       return;
     }
 
     const users = getUsers();
+    const currentNormalized = normalizeEmail(currentUser.email);
     const emailExists = users.some(
       (user) =>
-        user.email?.trim()?.toLowerCase() === trimmedEmail &&
-        user.email?.trim()?.toLowerCase() !== currentUser.email.trim().toLowerCase()
+        normalizeEmail(user.email) === trimmedEmail &&
+        normalizeEmail(user.email) !== currentNormalized
     );
 
     if (emailExists) {
@@ -140,14 +143,14 @@ export default function UserProfile() {
       return;
     }
 
-    const oldEmail = currentUser.email.trim().toLowerCase();
+    const oldEmail = currentNormalized;
     const oldProfileKey = getProfilePictureKey(oldEmail);
     const newProfileKey = getProfilePictureKey(trimmedEmail);
     const oldUploadsKey = getUploadsKey(oldEmail);
     const newUploadsKey = getUploadsKey(trimmedEmail);
 
     const updatedUsers = users.map((user) => {
-      if (user.email?.trim()?.toLowerCase() === oldEmail) {
+      if (normalizeEmail(user.email) === oldEmail) {
         return { ...user, email: trimmedEmail };
       }
       return user;

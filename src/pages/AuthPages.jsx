@@ -6,7 +6,7 @@ import { ThemeToggle } from "../ThemeContext";
 
 export default function AuthPage() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
   const mode = searchParams.get("mode") === "signup" ? "signup" : "login";
 
@@ -107,12 +107,12 @@ export default function AuthPage() {
         <ThemeToggle />
       </div>
 
-      <div className="w-full max-w-[520px] rounded-4xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#222b45] p-10 shadow-xl">
+      <div className="w-full max-w-130 rounded-4xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#222b45] p-10 shadow-xl">
         <div className="mb-10 flex w-full rounded-[18px] bg-[#e9edf2] dark:bg-slate-800 p-1">
           <button
             type="button"
             onClick={goToLogin}
-            className={`h-[54px] w-1/2 rounded-[16px] font-semibold transition ${
+            className={`h-13.5 w-1/2 rounded-2xl font-semibold transition ${
               mode === "login"
                 ? "bg-white dark:bg-slate-700 text-[#0f172f] dark:text-white shadow"
                 : "text-[#64748b] dark:text-slate-400"
@@ -124,7 +124,7 @@ export default function AuthPage() {
           <button
             type="button"
             onClick={goToSignup}
-            className={`h-[54px] w-1/2 rounded-[16px] font-semibold transition ${
+            className={`h-13.5 w-1/2 rounded-2xl font-semibold transition ${
               mode === "signup"
                 ? "bg-white dark:bg-slate-700 text-[#0f172f] dark:text-white shadow"
                 : "text-[#64748b] dark:text-slate-400"
@@ -197,14 +197,14 @@ export default function AuthPage() {
                 <button
                   type="button"
                   onClick={() => navigate("/")}
-                  className="h-[56px] w-1/2 rounded-[22px] border border-slate-300 dark:border-slate-600 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                  className="h-14 w-1/2 rounded-[22px] border border-slate-300 dark:border-slate-600 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 >
                   Cancel
                 </button>
 
                 <button
                   type="submit"
-                  className="h-[56px] w-1/2 rounded-[22px] bg-[#000d33] font-semibold text-white hover:bg-[#00154d]"
+                  className="h-14 w-1/2 rounded-[22px] bg-[#000d33] font-semibold text-white hover:bg-[#00154d]"
                 >
                   Log In
                 </button>
@@ -295,14 +295,14 @@ export default function AuthPage() {
                 <button
                   type="button"
                   onClick={() => navigate("/")}
-                  className="h-[56px] w-1/2 rounded-[22px] border border-slate-300 dark:border-slate-600 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                  className="h-14 w-1/2 rounded-[22px] border border-slate-300 dark:border-slate-600 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 >
                   Cancel
                 </button>
 
                 <button
                   type="submit"
-                  className="h-[56px] w-1/2 rounded-[22px] bg-[#000d33] font-semibold text-white hover:bg-[#00154d]"
+                  className="h-14 w-1/2 rounded-[22px] bg-[#000d33] font-semibold text-white hover:bg-[#00154d]"
                 >
                   Sign Up
                 </button>
