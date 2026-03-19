@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { allThemeImages, themeData } from "../data/galleryData";
+import { ThemeToggle } from "../ThemeContext";
 import {
   Search,
   Image as ImageIcon,
@@ -78,12 +79,12 @@ export default function App() {
   }, [searchQuery]);
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb] text-slate-900 selection:bg-[#dde7ff] selection:text-[#000d33] font-sans">
+    <div className="min-h-screen bg-[#f6f7fb] dark:bg-[#1a2035] text-slate-900 dark:text-white selection:bg-[#dde7ff] selection:text-[#000d33] font-sans">
       {/* Navigation Header */}
       <header
         className={`fixed top-0 z-50 flex w-full justify-center transition-all duration-300 ${
           isScrolled
-            ? "bg-white/80 backdrop-blur-md shadow-sm py-4"
+            ? "bg-white/80 dark:bg-[#222b45]/80 backdrop-blur-md shadow-sm py-4"
             : "bg-transparent py-6"
         }`}
       >
@@ -93,7 +94,7 @@ export default function App() {
               <ImageIcon size={20} className="text-white" />
             </div>
             <div>
-              <h2 className="text-[20px] font-bold tracking-tight text-[#0f172f]">
+              <h2 className="text-[20px] font-bold tracking-tight text-[#0f172f] dark:text-white">
                 Pixel<span className="text-[#28457a]">Vault</span>
               </h2>
             </div>
@@ -108,7 +109,7 @@ export default function App() {
                     .getElementById(item.toLowerCase())
                     ?.scrollIntoView({ behavior: "smooth" })
                 }
-                className="text-sm font-medium text-slate-500 transition-colors hover:text-[#0f172f]"
+                className="text-sm font-medium text-slate-500 dark:text-slate-400 transition-colors hover:text-[#0f172f] dark:hover:text-white"
               >
                 {item}
               </button>
@@ -120,14 +121,14 @@ export default function App() {
               <>
                 <Link
                   to="/user-home"
-                  className="hidden sm:flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-[#0f172f] transition hover:bg-slate-200"
+                  className="hidden sm:flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-[#0f172f] dark:text-white transition hover:bg-slate-200 dark:hover:bg-slate-700"
                 >
                   <LayoutDashboard size={16} />
                   <span>My Photos</span>
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="group flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-red-50 hover:text-red-600 hover:border-red-100"
+                  className="group flex items-center gap-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 shadow-sm transition hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 hover:border-red-100 dark:hover:border-red-800"
                 >
                   <LogOut
                     size={16}
@@ -137,21 +138,14 @@ export default function App() {
                 </button>
               </>
             ) : (
-              <>
-                <Link
-                  to="/auth?mode=login"
-                  className="rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:text-[#0f172f]"
-                >
-                  Log in
-                </Link>
-                <Link
-                  to="/auth?mode=signup"
-                  className="rounded-xl bg-[#000d33] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-[#000d33]/20 transition-all hover:-translate-y-0.5 hover:bg-[#00154d] hover:shadow-lg hover:shadow-[#000d33]/30"
-                >
-                  Join Free
-                </Link>
-              </>
+              <Link
+                to="/auth?mode=login"
+                className="rounded-xl bg-[#000d33] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-[#000d33]/20 transition-all hover:-translate-y-0.5 hover:bg-[#00154d] hover:shadow-lg hover:shadow-[#000d33]/30"
+              >
+                Join Free
+              </Link>
             )}
+            <ThemeToggle />
           </div>
         </div>
       </header>
@@ -169,14 +163,14 @@ export default function App() {
               New: Unlimited high-res backup
             </div>
 
-            <h1 className="mt-8 max-w-[700px] text-[48px] font-extrabold leading-[1.05] tracking-tight text-[#0f172f] sm:text-[64px] lg:text-[72px]">
+            <h1 className="mt-8 max-w-[700px] text-[48px] font-extrabold leading-[1.05] tracking-tight text-[#0f172f] dark:text-white sm:text-[64px] lg:text-[72px]">
               A more intelligent home for your{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#000d33] to-[#3a63ad]">
+              <span className="text-[#28457a] dark:text-[#6b9bd2]">
                 greatest moments.
               </span>
             </h1>
 
-            <p className="mt-6 max-w-[600px] text-[18px] leading-relaxed text-[#64748b] sm:text-[20px]">
+            <p className="mt-6 max-w-[600px] text-[18px] leading-relaxed text-[#64748b] dark:text-slate-300 sm:text-[20px]">
               Effortlessly upload, organize, and rediscover your favorite
               moments. Experience a secure, AI-powered gallery designed to keep
               your life's story safe and searchable.
@@ -213,30 +207,30 @@ export default function App() {
             </div>
 
             {/* Stats Row */}
-            <div className="mt-14 flex items-center gap-8 border-t border-slate-200 pt-8">
+            <div className="mt-14 flex items-center gap-8 border-t border-slate-200 dark:border-slate-700 pt-8">
               <div>
-                <p className="text-[32px] font-extrabold tracking-tight text-[#0f172f]">
+                <p className="text-[32px] font-extrabold tracking-tight text-[#0f172f] dark:text-white">
                   10k+
                 </p>
-                <p className="text-sm font-medium text-[#64748b]">
+                <p className="text-sm font-medium text-[#64748b] dark:text-slate-400">
                   Photos stored
                 </p>
               </div>
-              <div className="h-12 w-px bg-slate-200"></div>
+              <div className="h-12 w-px bg-slate-200 dark:bg-slate-700"></div>
               <div>
-                <p className="text-[32px] font-extrabold tracking-tight text-[#0f172f]">
+                <p className="text-[32px] font-extrabold tracking-tight text-[#0f172f] dark:text-white">
                   Unlimited
                 </p>
-                <p className="text-sm font-medium text-[#64748b]">
+                <p className="text-sm font-medium text-[#64748b] dark:text-slate-400">
                   Cloud backup
                 </p>
               </div>
-              <div className="hidden sm:block h-12 w-px bg-slate-200"></div>
+              <div className="hidden sm:block h-12 w-px bg-slate-200 dark:bg-slate-700"></div>
               <div className="hidden sm:block">
-                <p className="text-[32px] font-extrabold tracking-tight text-[#0f172f]">
+                <p className="text-[32px] font-extrabold tracking-tight text-[#0f172f] dark:text-white">
                   99.9%
                 </p>
-                <p className="text-sm font-medium text-[#64748b]">
+                <p className="text-sm font-medium text-[#64748b] dark:text-slate-400">
                   Uptime safety
                 </p>
               </div>
@@ -252,10 +246,10 @@ export default function App() {
             <div className="absolute -right-10 bottom-0 h-[300px] w-[300px] rounded-full bg-[#8ba3d4]/50 blur-[80px]"></div>
             <div className="absolute -inset-4 rounded-[50px] bg-gradient-to-tr from-[#ffffff]/50 to-transparent blur-2xl opacity-60"></div>
 
-            <div className="relative w-full max-w-[680px] rounded-[32px] border border-white/40 bg-white/10 p-6 shadow-[0_24px_80px_rgba(15,23,47,0.15),inset_0_1px_2px_rgba(255,255,255,0.6)] backdrop-blur-3xl backdrop-saturate-200 sm:p-8">
+            <div className="relative w-full max-w-[680px] rounded-[32px] border border-white/40 dark:border-white/10 bg-white/10 dark:bg-slate-800/60 p-6 shadow-[0_24px_80px_rgba(15,23,47,0.15),inset_0_1px_2px_rgba(255,255,255,0.6)] backdrop-blur-3xl backdrop-saturate-200 sm:p-8">
               {/* Search Bar */}
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-5 pointer-events-none text-slate-600">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-5 pointer-events-none text-slate-500 dark:text-slate-300">
                   <Search size={20} />
                 </div>
                 <input
@@ -263,13 +257,13 @@ export default function App() {
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Try 'Sunset at the beach' or 'Family dinner'..."
-                  className="h-[60px] w-full rounded-2xl border border-white/30 bg-white/20 pl-14 pr-6 text-[16px] text-slate-800 shadow-[inset_0_1px_4px_rgba(0,0,0,0.05)] outline-none backdrop-blur-md transition-all placeholder:text-slate-500 hover:bg-white/30 focus:border-white/50 focus:bg-white/40 focus:ring-4 focus:ring-white/20"
+                  className="h-[60px] w-full rounded-2xl border border-white/30 dark:border-slate-500 bg-white/20 dark:bg-slate-700/70 pl-14 pr-6 text-[16px] text-slate-800 dark:text-white shadow-[inset_0_1px_4px_rgba(0,0,0,0.05)] outline-none backdrop-blur-md transition-all placeholder:text-slate-500 dark:placeholder:text-slate-300 hover:bg-white/30 dark:hover:bg-slate-700/90 focus:border-white/50 dark:focus:border-slate-400 focus:bg-white/40 focus:ring-4 focus:ring-white/20"
                 />
               </div>
 
               {/* Theme Pills */}
               <div className="mt-5 flex flex-wrap gap-2">
-                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider py-2 pr-2 drop-shadow-sm">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-200 uppercase tracking-wider py-2 pr-2 drop-shadow-sm">
                   Explore:
                 </span>
                 {themeData.map((theme) => (
@@ -277,7 +271,7 @@ export default function App() {
                     key={theme.id}
                     type="button"
                     onClick={() => setSearchQuery(theme.label)}
-                    className="rounded-full border border-white/30 bg-white/20 px-4 py-1.5 text-sm font-medium text-slate-700 shadow-sm backdrop-blur-md transition-all hover:border-[#32484e] hover:bg-white/40 hover:text-[#28457a] focus:ring-2 focus:ring-[#28457a] focus:outline-none"
+                    className="rounded-full border border-white/30 dark:border-slate-400 bg-white/20 dark:bg-slate-600/60 px-4 py-1.5 text-sm font-semibold text-slate-700 dark:text-white shadow-sm backdrop-blur-md transition-all hover:border-[#32484e] hover:bg-white/40 dark:hover:bg-slate-500 hover:text-[#28457a] dark:hover:text-white focus:ring-2 focus:ring-[#28457a] focus:outline-none"
                   >
                     {theme.label}
                   </button>
@@ -286,7 +280,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setSearchQuery("")}
-                    className="rounded-full border border-white/10 bg-slate-800/5 px-4 py-1.5 text-sm font-medium text-slate-600 backdrop-blur-md transition-colors hover:bg-slate-800/10"
+                    className="rounded-full border border-white/10 dark:border-slate-500 bg-slate-800/5 dark:bg-slate-600/40 px-4 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-200 backdrop-blur-md transition-colors hover:bg-slate-800/10"
                   >
                     Clear
                   </button>
@@ -337,17 +331,18 @@ export default function App() {
         </section>
 
         {/* Cloud Section */}
-        <section id="cloud" className="relative bg-white py-20 sm:py-28">
+        <section
+          id="cloud"
+          className="relative bg-white dark:bg-[#222b45] py-20 sm:py-28"
+        >
           <div className="mx-auto w-full max-w-[1440px] px-6 sm:px-10 lg:px-16">
             <div className="flex flex-col items-center gap-12 lg:flex-row lg:gap-20">
               <div className="flex-1">
-                <p className="text-sm font-bold uppercase tracking-[0.15em] text-[#28457a]">
-                  Cloud Storage
-                </p>
-                <h2 className="mt-4 text-[36px] font-extrabold tracking-tight text-[#0f172f] sm:text-[44px]">
+                <p className="section-label">Cloud Storage</p>
+                <h2 className="section-title">
                   Your memories, safe and always accessible.
                 </h2>
-                <p className="mt-5 text-[18px] leading-relaxed text-[#64748b]">
+                <p className="mt-5 text-[18px] leading-relaxed text-[#64748b] dark:text-slate-400">
                   Every photo you upload is securely stored in the cloud with
                   unlimited backup. Access your full library from any device,
                   anywhere in the world — no storage limits, no compromise.
@@ -362,7 +357,7 @@ export default function App() {
                   ].map((item) => (
                     <li
                       key={item}
-                      className="flex items-center gap-3 text-[16px] text-[#0f172f]"
+                      className="flex items-center gap-3 text-[16px] text-[#0f172f] dark:text-slate-200"
                     >
                       <CheckCircle2
                         size={20}
@@ -375,16 +370,16 @@ export default function App() {
               </div>
 
               <div className="flex-1 w-full">
-                <div className="rounded-[32px] bg-white p-8 shadow-[0_8px_40px_rgba(15,23,47,0.08)] ring-1 ring-slate-200">
-                  <div className="flex items-center gap-4 border-b border-slate-100 pb-6">
+                <div className="rounded-[32px] bg-white dark:bg-[#2a3655] p-8 shadow-[0_8px_40px_rgba(15,23,47,0.08)] ring-1 ring-slate-200 dark:ring-slate-700">
+                  <div className="flex items-center gap-4 border-b border-slate-100 dark:border-slate-700 pb-6">
                     <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#000d33] to-[#28457a]">
                       <ImageIcon size={26} className="text-white" />
                     </div>
                     <div>
-                      <p className="text-[18px] font-bold text-[#0f172f]">
+                      <p className="text-[18px] font-bold text-[#0f172f] dark:text-white">
                         PixelVault Cloud
                       </p>
-                      <p className="text-sm text-[#64748b]">
+                      <p className="text-sm text-[#64748b] dark:text-slate-400">
                         Unlimited · Encrypted · Always on
                       </p>
                     </div>
@@ -398,12 +393,12 @@ export default function App() {
                     ].map((stat) => (
                       <div
                         key={stat.label}
-                        className="rounded-2xl bg-[#f6f7fb] px-4 py-5"
+                        className="rounded-2xl bg-[#f6f7fb] dark:bg-slate-800 px-4 py-5"
                       >
-                        <p className="text-[28px] font-extrabold text-[#0f172f]">
+                        <p className="text-[28px] font-extrabold text-[#0f172f] dark:text-white">
                           {stat.value}
                         </p>
-                        <p className="mt-1 text-xs font-medium text-[#64748b]">
+                        <p className="mt-1 text-xs font-medium text-[#64748b] dark:text-slate-400">
                           {stat.label}
                         </p>
                       </div>
@@ -416,18 +411,19 @@ export default function App() {
         </section>
 
         {/* Features Section */}
-        <section id="features" className="relative bg-[#f6f7fb] py-20 sm:py-28">
+        <section
+          id="features"
+          className="relative bg-[#f6f7fb] dark:bg-[#1a2035] py-20 sm:py-28"
+        >
           <div className="mx-auto w-full max-w-[1440px] px-6 sm:px-10 lg:px-16">
             <div className="max-w-[720px]">
-              <p className="text-sm font-bold uppercase tracking-[0.15em] text-[#28457a]">
-                Why PixelVault
-              </p>
-              <h2 className="mt-4 text-[36px] font-extrabold tracking-tight text-[#0f172f] sm:text-[44px]">
+              <p className="section-label">Why PixelVault</p>
+              <h2 className="section-title">
                 Powering your visual world with ease.
               </h2>
-              <p className="mt-5 text-[18px] leading-relaxed text-[#64748b]">
+              <p className="mt-5 text-[18px] leading-relaxed text-[#64748b] dark:text-slate-400">
                 From high-speed uploads to intelligent categorization, we’ve
-                built the ultimate space to archive your life's journey.
+                built the ultimate space to archive your life’s journey.
               </p>
             </div>
 
@@ -437,15 +433,15 @@ export default function App() {
                 return (
                   <div
                     key={idx}
-                    className="group relative rounded-[32px] border border-slate-100 bg-white p-8 shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(15,23,47,0.08)]"
+                    className="group relative rounded-[32px] border border-slate-100 dark:border-slate-700 bg-white dark:bg-[#2a3655] p-8 shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(15,23,47,0.08)]"
                   >
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f0f4ff] text-[#28457a] transition-colors group-hover:bg-[#000d33] group-hover:text-white">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f0f4ff] dark:bg-slate-700 text-[#28457a] dark:text-blue-400 transition-colors group-hover:bg-[#000d33] group-hover:text-white">
                       <Icon size={24} strokeWidth={2.5} />
                     </div>
-                    <h3 className="mt-6 text-[22px] font-bold text-[#0f172f]">
+                    <h3 className="mt-6 text-[22px] font-bold text-[#0f172f] dark:text-white">
                       {feature.title}
                     </h3>
-                    <p className="mt-3 text-[16px] leading-relaxed text-[#64748b]">
+                    <p className="mt-3 text-[16px] leading-relaxed text-[#64748b] dark:text-slate-400">
                       {feature.description}
                     </p>
                   </div>
@@ -456,7 +452,10 @@ export default function App() {
         </section>
 
         {/* Benefits Section */}
-        <section id="benefits" className="py-20 sm:py-28 bg-white">
+        <section
+          id="benefits"
+          className="py-20 sm:py-28 bg-white dark:bg-[#222b45]"
+        >
           <div className="mx-auto w-full max-w-[1440px] px-6 sm:px-10 lg:px-16">
             <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
               <div className="relative overflow-hidden rounded-[40px] bg-[#000d33] px-8 py-12 sm:px-12 lg:py-20 shadow-2xl">
@@ -482,12 +481,12 @@ export default function App() {
                 {benefits.map((benefit, idx) => (
                   <div
                     key={idx}
-                    className="group flex items-center gap-5 rounded-[24px] bg-white p-5 shadow-[0_4px_16px_rgba(15,23,47,0.04)] border border-slate-100 transition-all duration-300 hover:-translate-y-1 hover:border-[#28457a]/30 hover:shadow-[0_12px_30px_rgba(15,23,47,0.08)] cursor-default"
+                    className="group flex items-center gap-5 rounded-[24px] bg-white dark:bg-[#2a3655] p-5 shadow-[0_4px_16px_rgba(15,23,47,0.04)] border border-slate-100 dark:border-slate-700 transition-all duration-300 hover:-translate-y-1 hover:border-[#28457a]/30 hover:shadow-[0_12px_30px_rgba(15,23,47,0.08)] cursor-default"
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f0f4ff] text-[#28457a] transition-all duration-300 group-hover:scale-110 group-hover:bg-[#dde7ff]">
                       <CheckCircle2 size={20} strokeWidth={2.5} />
                     </div>
-                    <p className="text-[16px] font-semibold text-[#0f172f] transition-colors duration-300 group-hover:text-[#28457a]">
+                    <p className="text-[16px] font-semibold text-[#0f172f] dark:text-slate-200 transition-colors duration-300 group-hover:text-[#28457a]">
                       {benefit}
                     </p>
                   </div>
@@ -504,13 +503,13 @@ export default function App() {
 
           <div className="relative overflow-hidden rounded-[40px] border border-white/60 bg-white/20 px-8 py-14 shadow-[0_24px_80px_rgba(15,23,47,0.06),inset_0_1px_2px_rgba(255,255,255,0.7)] backdrop-blur-3xl backdrop-saturate-150 sm:px-14 lg:py-20 text-center">
             <div className="relative z-10 mx-auto max-w-[800px]">
-              <p className="mb-4 text-sm font-bold uppercase tracking-[0.25em] text-[#28457a]">
+              <p className="mb-4 section-label tracking-[0.25em]">
                 Get Started
               </p>
-              <h2 className="text-[34px] font-extrabold tracking-tight text-[#0f172f] sm:text-[44px] leading-[1.1]">
+              <h2 className="section-title leading-[1.1] mt-0! text-[34px]">
                 Ready to start preserving your story?
               </h2>
-              <p className="mx-auto mt-6 max-w-[600px] text-[18px] leading-relaxed text-[#64748b]">
+              <p className="mx-auto mt-6 max-w-[600px] text-[18px] leading-relaxed text-[#64748b] dark:text-slate-400">
                 Join thousands of users who trust PixelVault to keep their
                 photos safe, searchable, and stunningly organized.
               </p>
@@ -547,7 +546,7 @@ export default function App() {
       </main>
 
       {/* Footer Section */}
-      <footer className="mt-10 border-t border-slate-200 bg-white pt-16 pb-8">
+      <footer className="mt-10 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-[#222b45] pt-16 pb-8">
         <div className="mx-auto w-full max-w-[1440px] px-6 sm:px-10 lg:px-16">
           <div className="grid grid-cols-1 gap-10 md:grid-cols-4 lg:grid-cols-5">
             {/* Brand Column */}
@@ -556,11 +555,11 @@ export default function App() {
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#000d33] to-[#28457a] text-white shadow-md">
                   <ImageIcon size={16} className="text-white" />
                 </div>
-                <h2 className="text-[18px] font-bold tracking-tight text-[#0f172f]">
+                <h2 className="text-[18px] font-bold tracking-tight text-[#0f172f] dark:text-white">
                   Pixel<span className="text-[#28457a]">Vault</span>
                 </h2>
               </div>
-              <p className="mt-5 max-w-[300px] text-[15px] leading-relaxed text-[#64748b]">
+              <p className="mt-5 max-w-[300px] text-[15px] leading-relaxed text-[#64748b] dark:text-slate-400">
                 The modern home for organizing, searching, and showcasing your
                 life's memories with lightning speed and elegant design.
               </p>
@@ -568,7 +567,7 @@ export default function App() {
 
             {/* Links Columns */}
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-[#0f172f]">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-[#0f172f] dark:text-white">
                 Features
               </h3>
               <ul className="mt-5 flex flex-col gap-3">
@@ -588,7 +587,7 @@ export default function App() {
             </div>
 
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-[#0f172f]">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-[#0f172f] dark:text-white">
                 Support
               </h3>
               <ul className="mt-5 flex flex-col gap-3">
@@ -606,7 +605,7 @@ export default function App() {
             </div>
 
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-[#0f172f]">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-[#0f172f] dark:text-white">
                 Legal
               </h3>
               <ul className="mt-5 flex flex-col gap-3">
@@ -627,8 +626,8 @@ export default function App() {
           </div>
 
           {/* Bottom Bar */}
-          <div className="mt-16 flex flex-col items-center justify-between border-t border-slate-100 pt-8 sm:flex-row gap-4">
-            <p className="text-[14px] text-slate-500">
+          <div className="mt-16 flex flex-col items-center justify-between border-t border-slate-100 dark:border-slate-700 pt-8 sm:flex-row gap-4">
+            <p className="text-[14px] text-slate-500 dark:text-slate-400">
               © {new Date().getFullYear()} PixelVault Photos Inc. All rights
               reserved.
             </p>
