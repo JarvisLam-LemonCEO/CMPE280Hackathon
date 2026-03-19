@@ -93,7 +93,7 @@ src/
 
 ## Workflow
 
-![Architecture Diagram](.workflow.png)
+![Architecture Diagram](workflow.png)
 
 ---
 
