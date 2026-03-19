@@ -9,6 +9,11 @@ Members:
 
 ## Problem and idea
 ## Key technical choices
+- Used **React + Vite** for fast development and modular design
+- Used **localStorage instead of backend** for simplicity
+- Implemented **per-user data isolation** using email-based keys
+- Optimized performance using **useMemo**
+- Designed UI using **Tailwind CSS for rapid styling**
 ## How to run the project
 1. Go to the project folder
    ```bash
