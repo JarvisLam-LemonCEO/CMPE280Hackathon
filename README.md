@@ -1,8 +1,14 @@
 # PixelVault — CMPE 280 Hackathon
 
-**Midterm · Hackathon · Final Project — Team 2, Group 7**
+Midterm · Hackathon · Final Project — Team 2, Group 7
 
-A modern AI-powered photo gallery web application that lets users securely upload, organize, search, and manage their personal image collections.
+**Members:**
+
+1. Dat Tri Tat
+2. Hei Lam
+3. Henry Yang
+4. Saim Sheikh
+5. LuuThuy Luu
 
 ---
 
@@ -21,7 +27,7 @@ Managing personal photo libraries is often messy — photos scattered across dev
 
 | Layer      | Technology                          |
 | ---------- | ----------------------------------- |
-| Framework  | React 19                            |
+| Framework  | React                               |
 | Routing    | React Router DOM 7                  |
 | Build Tool | Vite 7                              |
 | Styling    | Tailwind CSS v4                     |
@@ -81,6 +87,7 @@ src/
 
 - Toggle between light and dark theme using the sun/moon button
 - Preference saved to `localStorage` and restored on reload
+- Navy-blue dark palette (`#1a2035`, `#222b45`, `#2a3655`) across all pages
 
 ---
 
@@ -143,6 +150,14 @@ npm run build
 
 All data (users, uploads, comments, profile pictures) is stored in the browser's `localStorage`. This keeps the project self-contained with zero server setup — appropriate for a hackathon demo scope.
 
+### Per-User Data Isolation
+
+Uploaded images and profile pictures are stored under email-scoped keys (e.g., `userGalleryUploadsV1:user@email.com`) so multiple accounts can coexist in the same browser without data conflicts.
+
+### Performance with `useMemo`
+
+Gallery filtering and search are memoized using `useMemo` to avoid unnecessary re-renders when state unrelated to the filter changes.
+
 ### Tailwind CSS v4 Class-Based Dark Mode
 
 Tailwind v4 does not use `darkMode: 'class'` in a config file. Instead, dark mode is declared as a CSS variant:
@@ -169,7 +184,3 @@ Common repeated patterns (modals, cards, buttons, inputs) are extracted into `@l
   @apply rounded-xl bg-[#000d33] px-5 py-3 text-sm font-semibold text-white ...;
 }
 ```
-
-### Per-User Storage Keys
-
-Uploaded images and profile pictures are stored under email-scoped keys (e.g., `userGalleryUploadsV1:user@email.com`) so multiple accounts can coexist in the same browser without data conflicts.
