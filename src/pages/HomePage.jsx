@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { allThemeImages, themeData } from "../data/galleryData";
 import { ThemeToggle } from "../ThemeContext";
+import { useAuth } from "../lib/AuthContext";
 import {
   Search,
   Image as ImageIcon,
@@ -47,8 +48,8 @@ const benefits = [
 
 export default function App() {
   const navigate = useNavigate();
+  const { user: currentUser, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const currentUser = JSON.parse(localStorage.getItem("currentUser"));
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
@@ -57,8 +58,12 @@ export default function App() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("currentUser");
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (err) {
+      console.error("logout failed", err);
+    }
     navigate("/");
   };
 

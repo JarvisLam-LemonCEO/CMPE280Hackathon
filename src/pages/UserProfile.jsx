@@ -1,115 +1,110 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { updateEmail, updatePassword } from "firebase/auth";
+import { doc, updateDoc } from "firebase/firestore";
 import { ThemeToggle } from "../ThemeContext";
-
-const PROFILE_PICTURE_KEY_PREFIX = "userProfilePictureV1";
-const UPLOAD_STORAGE_KEY_PREFIX = "userGalleryUploadsV1";
-
-const normalizeEmail = (email) => email.trim().toLowerCase();
-
-function getCurrentUser() {
-  try {
-    return JSON.parse(localStorage.getItem("currentUser"));
-  } catch {
-    return null;
-  }
-}
-
-function getUsers() {
-  try {
-    return JSON.parse(localStorage.getItem("users")) || [];
-  } catch {
-    return [];
-  }
-}
-
-function getProfilePictureKey(email) {
-  const safeEmail = email?.trim()?.toLowerCase() || "guest";
-  return `${PROFILE_PICTURE_KEY_PREFIX}:${safeEmail}`;
-}
-
-function getUploadsKey(email) {
-  const safeEmail = email?.trim()?.toLowerCase() || "guest";
-  return `${UPLOAD_STORAGE_KEY_PREFIX}:${safeEmail}`;
-}
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () =>
-      reject(new Error("Could not read the selected image."));
-    reader.readAsDataURL(file);
-  });
-}
+import { useAuth } from "../lib/AuthContext";
+import { auth, db } from "../lib/firebase";
+import { uploadToCloudinary } from "../lib/cloudinary";
 
 export default function UserProfile() {
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState(getCurrentUser());
+  const { user, profile, loading, logout } = useAuth();
 
-  const [profileImage, setProfileImage] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
+
+  const [displayNameInput, setDisplayNameInput] = useState("");
+  const [savingDisplayName, setSavingDisplayName] = useState(false);
 
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [newEmail, setNewEmail] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteText, setDeleteText] = useState("");
 
+  // Redirect if not logged in
   useEffect(() => {
-    const storedUser = getCurrentUser();
-    if (!storedUser) {
+    if (!loading && !user) {
       navigate("/auth?mode=login");
-      return;
     }
+  }, [loading, user, navigate]);
 
-    setCurrentUser(storedUser);
-    setNewEmail(storedUser.email || "");
-
-    const storedProfileImage = localStorage.getItem(
-      getProfilePictureKey(storedUser.email),
-    );
-    if (storedProfileImage) {
-      setProfileImage(storedProfileImage);
+  // Sync input defaults when profile loads / updates
+  useEffect(() => {
+    if (profile?.displayName !== undefined) {
+      setDisplayNameInput(profile.displayName || "");
     }
-  }, [navigate]);
+  }, [profile?.displayName]);
+
+  useEffect(() => {
+    if (user?.email) {
+      setNewEmail(user.email);
+    }
+  }, [user?.email]);
 
   const isDeleteMatch = useMemo(
     () => deleteText.trim().toLowerCase() === "delete account",
     [deleteText],
   );
 
-  const handleSaveProfileImage = async () => {
-    if (!selectedFile || !currentUser?.email) return;
+  const profileImage = profile?.photoURL || "";
+  const email = user?.email || "";
 
+  const handleSaveProfileImage = async () => {
+    if (!selectedFile || !user) return;
     try {
-      const dataUrl = await readFileAsDataUrl(selectedFile);
-      localStorage.setItem(getProfilePictureKey(currentUser.email), dataUrl);
-      setProfileImage(dataUrl);
+      setUploadingPicture(true);
+      const { url } = await uploadToCloudinary(selectedFile);
+      await updateDoc(doc(db, "users", user.uid), { photoURL: url });
       setSelectedFile(null);
       alert("Profile picture updated.");
-    } catch {
-      alert("Could not upload profile picture.");
+    } catch (err) {
+      console.error("profile picture upload failed", err);
+      alert(err?.message || "Could not upload profile picture.");
+    } finally {
+      setUploadingPicture(false);
     }
   };
 
-  const handleDeleteProfilePhoto = () => {
-    if (!currentUser?.email) return;
-
-    const key = getProfilePictureKey(currentUser.email);
-    localStorage.removeItem(key);
-    setProfileImage("");
-    setSelectedFile(null);
-
-    alert("Profile photo removed.");
+  const handleDeleteProfilePhoto = async () => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, "users", user.uid), { photoURL: "" });
+      setSelectedFile(null);
+      alert("Profile photo removed.");
+    } catch (err) {
+      console.error("remove profile photo failed", err);
+      alert("Could not remove profile photo.");
+    }
   };
 
-  const handleChangeEmail = () => {
+  const handleSaveDisplayName = async () => {
+    if (!user) return;
+    const trimmed = displayNameInput.trim();
+    if (!trimmed) {
+      alert("Please enter a display name.");
+      return;
+    }
+    try {
+      setSavingDisplayName(true);
+      await updateDoc(doc(db, "users", user.uid), { displayName: trimmed });
+      alert("Display name updated.");
+    } catch (err) {
+      console.error("update display name failed", err);
+      alert("Could not update display name.");
+    } finally {
+      setSavingDisplayName(false);
+    }
+  };
+
+  const handleChangeEmail = async () => {
     const trimmedEmail = newEmail.trim().toLowerCase();
 
     if (!trimmedEmail) {
@@ -123,77 +118,42 @@ export default function UserProfile() {
       return;
     }
 
-    if (!currentUser?.email) return;
+    if (!auth.currentUser) return;
 
-    if (trimmedEmail === normalizeEmail(currentUser.email)) {
+    if (trimmedEmail === (auth.currentUser.email || "").toLowerCase()) {
       setShowEmailModal(false);
       return;
     }
 
-    const users = getUsers();
-    const currentNormalized = normalizeEmail(currentUser.email);
-    const emailExists = users.some(
-      (user) =>
-        normalizeEmail(user.email) === trimmedEmail &&
-        normalizeEmail(user.email) !== currentNormalized,
-    );
-
-    if (emailExists) {
-      alert("That email is already registered.");
-      return;
-    }
-
-    const oldEmail = currentNormalized;
-    const oldProfileKey = getProfilePictureKey(oldEmail);
-    const newProfileKey = getProfilePictureKey(trimmedEmail);
-    const oldUploadsKey = getUploadsKey(oldEmail);
-    const newUploadsKey = getUploadsKey(trimmedEmail);
-
-    const updatedUsers = users.map((user) => {
-      if (normalizeEmail(user.email) === oldEmail) {
-        return { ...user, email: trimmedEmail };
+    try {
+      setSavingEmail(true);
+      await updateEmail(auth.currentUser, trimmedEmail);
+      await updateDoc(doc(db, "users", auth.currentUser.uid), {
+        email: trimmedEmail,
+      });
+      setShowEmailModal(false);
+      alert("Email changed successfully.");
+    } catch (err) {
+      console.error("change email failed", err);
+      if (err?.code === "auth/requires-recent-login") {
+        alert(
+          "For security, please log out and log back in before changing your email.",
+        );
+      } else if (err?.code === "auth/email-already-in-use") {
+        alert("That email is already registered.");
+      } else if (err?.code === "auth/invalid-email") {
+        alert("Please enter a valid email address.");
+      } else {
+        alert("Could not change email. Please try again.");
       }
-      return user;
-    });
-
-    const updatedCurrentUser = {
-      ...currentUser,
-      email: trimmedEmail,
-    };
-
-    const oldProfileImage = localStorage.getItem(oldProfileKey);
-    if (oldProfileImage) {
-      localStorage.setItem(newProfileKey, oldProfileImage);
-      localStorage.removeItem(oldProfileKey);
+    } finally {
+      setSavingEmail(false);
     }
-
-    const oldUploads = localStorage.getItem(oldUploadsKey);
-    if (oldUploads) {
-      localStorage.setItem(newUploadsKey, oldUploads);
-      localStorage.removeItem(oldUploadsKey);
-    }
-
-    localStorage.setItem("users", JSON.stringify(updatedUsers));
-    localStorage.setItem("currentUser", JSON.stringify(updatedCurrentUser));
-
-    setCurrentUser(updatedCurrentUser);
-    setShowEmailModal(false);
-
-    alert("Email changed successfully.");
   };
 
-  const handleChangePassword = () => {
-    if (
-      !oldPassword.trim() ||
-      !newPassword.trim() ||
-      !confirmNewPassword.trim()
-    ) {
+  const handleChangePassword = async () => {
+    if (!newPassword.trim() || !confirmNewPassword.trim()) {
       alert("Please fill in all password fields.");
-      return;
-    }
-
-    if (oldPassword !== currentUser?.password) {
-      alert("Old password is incorrect.");
       return;
     }
 
@@ -202,59 +162,55 @@ export default function UserProfile() {
       return;
     }
 
-    if (newPassword.length < 4) {
-      alert("New password should be at least 4 characters.");
+    if (newPassword.length < 6) {
+      alert("New password should be at least 6 characters.");
       return;
     }
 
-    if (newPassword === oldPassword) {
-      alert("New password must be different from the old password.");
-      return;
-    }
+    if (!auth.currentUser) return;
 
-    const users = getUsers();
-    const updatedUsers = users.map((user) => {
-      if (user.email === currentUser.email) {
-        return {
-          ...user,
-          password: newPassword,
-        };
+    try {
+      setSavingPassword(true);
+      await updatePassword(auth.currentUser, newPassword);
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setShowPasswordModal(false);
+      alert("Password changed successfully.");
+    } catch (err) {
+      console.error("change password failed", err);
+      if (err?.code === "auth/requires-recent-login") {
+        alert(
+          "For security, please log out and log back in before changing your password.",
+        );
+      } else if (err?.code === "auth/weak-password") {
+        alert("Password is too weak. Use at least 6 characters.");
+      } else {
+        alert("Could not change password. Please try again.");
       }
-      return user;
-    });
-
-    const updatedCurrentUser = {
-      ...currentUser,
-      password: newPassword,
-    };
-
-    localStorage.setItem("users", JSON.stringify(updatedUsers));
-    localStorage.setItem("currentUser", JSON.stringify(updatedCurrentUser));
-
-    setCurrentUser(updatedCurrentUser);
-    setOldPassword("");
-    setNewPassword("");
-    setConfirmNewPassword("");
-    setShowPasswordModal(false);
-
-    alert("Password changed successfully.");
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
-  const handleDeleteAccount = () => {
-    if (!isDeleteMatch || !currentUser?.email) return;
-
-    const users = getUsers();
-    const filteredUsers = users.filter(
-      (user) => user.email !== currentUser.email,
-    );
-
-    localStorage.setItem("users", JSON.stringify(filteredUsers));
-    localStorage.removeItem("currentUser");
-    localStorage.removeItem(getProfilePictureKey(currentUser.email));
-    localStorage.removeItem(getUploadsKey(currentUser.email));
-
+  const handleDeleteAccount = async () => {
+    if (!isDeleteMatch) return;
+    // Full account deletion requires re-auth and is out of scope for this migration;
+    // log the user out as the safest behavior.
+    try {
+      await logout();
+    } catch (err) {
+      console.error("logout failed during delete", err);
+    }
     navigate("/");
   };
+
+  if (loading || !user) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f6f7fb] dark:bg-[#1a2035] text-slate-600 dark:text-slate-300">
+        <p>Loading...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#f6f7fb] dark:bg-[#1a2035] px-6 py-8 text-slate-900 dark:text-white sm:px-10 lg:px-16">
@@ -271,8 +227,8 @@ export default function UserProfile() {
               Manage Your Profile
             </h1>
             <p className="mt-2 max-w-[700px] text-[17px] leading-7 text-[#64748b] dark:text-slate-400">
-              Update your profile image, email, password, or remove your
-              account.
+              Update your profile image, display name, email, password, or
+              remove your account.
             </p>
           </div>
 
@@ -295,12 +251,12 @@ export default function UserProfile() {
                 />
               ) : (
                 <div className="flex h-40 w-40 items-center justify-center rounded-full bg-[#dde7ff] text-5xl font-bold text-[#28457a]">
-                  {currentUser?.email?.[0]?.toUpperCase() || "U"}
+                  {(profile?.displayName?.[0] || email[0] || "U").toUpperCase()}
                 </div>
               )}
 
               <h2 className="mt-5 break-all text-center text-xl font-bold text-[#0f172f] dark:text-white">
-                {currentUser?.email || "User"}
+                {profile?.displayName || email || "User"}
               </h2>
 
               <label className="mt-5 block w-full text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -317,9 +273,10 @@ export default function UserProfile() {
 
               <button
                 onClick={handleSaveProfileImage}
-                className="mt-4 w-full btn-primary"
+                disabled={uploadingPicture || !selectedFile}
+                className="mt-4 w-full btn-primary disabled:opacity-60"
               >
-                Save Profile Picture
+                {uploadingPicture ? "Uploading..." : "Save Profile Picture"}
               </button>
 
               <button
@@ -334,6 +291,33 @@ export default function UserProfile() {
           <div className="space-y-5">
             <div className="inner-card">
               <h3 className="text-xl font-bold text-[#0f172f] dark:text-white">
+                Display Name
+              </h3>
+              <p className="mt-2 text-sm text-[#64748b] dark:text-slate-400">
+                This name appears on your comments and uploads.
+              </p>
+              <div className="mt-4">
+                <input
+                  type="text"
+                  value={displayNameInput}
+                  onChange={(event) => setDisplayNameInput(event.target.value)}
+                  placeholder="Your display name"
+                  className="form-input"
+                />
+              </div>
+              <div className="mt-5">
+                <button
+                  onClick={handleSaveDisplayName}
+                  disabled={savingDisplayName}
+                  className="btn-primary disabled:opacity-60"
+                >
+                  {savingDisplayName ? "Saving..." : "Save Display Name"}
+                </button>
+              </div>
+            </div>
+
+            <div className="inner-card">
+              <h3 className="text-xl font-bold text-[#0f172f] dark:text-white">
                 Account Details
               </h3>
               <div className="mt-4 space-y-3">
@@ -342,7 +326,7 @@ export default function UserProfile() {
                     Email
                   </p>
                   <p className="mt-1 break-all font-semibold text-[#0f172f] dark:text-white">
-                    {currentUser?.email || "No email"}
+                    {email || "No email"}
                   </p>
                 </div>
               </div>
@@ -402,14 +386,18 @@ export default function UserProfile() {
               <button
                 onClick={() => {
                   setShowEmailModal(false);
-                  setNewEmail(currentUser?.email || "");
+                  setNewEmail(email);
                 }}
                 className="btn-cancel"
               >
                 Cancel
               </button>
-              <button onClick={handleChangeEmail} className="btn-primary-sm">
-                Change
+              <button
+                onClick={handleChangeEmail}
+                disabled={savingEmail}
+                className="btn-primary-sm disabled:opacity-60"
+              >
+                {savingEmail ? "Saving..." : "Change"}
               </button>
             </div>
           </div>
@@ -421,18 +409,9 @@ export default function UserProfile() {
           <div className="modal-box">
             <h2 className="modal-title">Change Password</h2>
             <p className="modal-subtitle">
-              Enter your old password and choose a new one.
+              Enter and confirm your new password.
             </p>
             <div className="mt-5 space-y-4">
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Old Password
-                <input
-                  type="password"
-                  value={oldPassword}
-                  onChange={(event) => setOldPassword(event.target.value)}
-                  className="form-input-modal"
-                />
-              </label>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 New Password
                 <input
@@ -458,7 +437,6 @@ export default function UserProfile() {
               <button
                 onClick={() => {
                   setShowPasswordModal(false);
-                  setOldPassword("");
                   setNewPassword("");
                   setConfirmNewPassword("");
                 }}
@@ -466,8 +444,12 @@ export default function UserProfile() {
               >
                 Cancel
               </button>
-              <button onClick={handleChangePassword} className="btn-primary-sm">
-                Change
+              <button
+                onClick={handleChangePassword}
+                disabled={savingPassword}
+                className="btn-primary-sm disabled:opacity-60"
+              >
+                {savingPassword ? "Saving..." : "Change"}
               </button>
             </div>
           </div>

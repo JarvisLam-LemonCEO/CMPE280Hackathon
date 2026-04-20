@@ -1,12 +1,36 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
+import { auth } from "../lib/firebase";
 import { ThemeToggle } from "../ThemeContext";
 
 
+function friendlyAuthError(code) {
+  switch (code) {
+    case "auth/email-already-in-use":
+      return "This email is already registered.";
+    case "auth/invalid-credential":
+    case "auth/wrong-password":
+    case "auth/user-not-found":
+      return "Invalid email or password.";
+    case "auth/weak-password":
+      return "Password is too weak. Use at least 6 characters.";
+    case "auth/invalid-email":
+      return "Please enter a valid email address.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Please try again later.";
+    default:
+      return "Something went wrong. Please try again.";
+  }
+}
+
 export default function AuthPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const mode = searchParams.get("mode") === "signup" ? "signup" : "login";
 
@@ -19,6 +43,8 @@ export default function AuthPage() {
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [submitting, setSubmitting] = useState(false);
 
   const inputClass =
     "h-14 w-full rounded-[20px] border border-slate-200 dark:border-slate-400 bg-white dark:bg-slate-800 px-14 pr-12 text-[16px] text-slate-700 dark:text-slate-200 outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500";
@@ -38,7 +64,7 @@ export default function AuthPage() {
     resetVisibility();
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
 
     if (!loginEmail || !loginPassword) {
@@ -46,24 +72,22 @@ export default function AuthPage() {
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem("users")) || [];
-
-    const matchedUser = users.find(
-      (user) =>
-        user.email === loginEmail.trim() &&
-        user.password === loginPassword
-    );
-
-    if (!matchedUser) {
-      alert("Invalid email or password.");
-      return;
+    try {
+      setSubmitting(true);
+      await signInWithEmailAndPassword(
+        auth,
+        loginEmail.trim(),
+        loginPassword,
+      );
+      navigate("/user-home");
+    } catch (err) {
+      alert(friendlyAuthError(err?.code));
+    } finally {
+      setSubmitting(false);
     }
-
-    localStorage.setItem("currentUser", JSON.stringify(matchedUser));
-    navigate("/user-home");
   };
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
 
     if (!signupEmail || !signupPassword || !confirmPassword) {
@@ -76,28 +100,19 @@ export default function AuthPage() {
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem("users")) || [];
-
-    const userExists = users.some(
-      (user) => user.email === signupEmail.trim()
-    );
-
-    if (userExists) {
-      alert("This email is already registered.");
-      return;
+    try {
+      setSubmitting(true);
+      await createUserWithEmailAndPassword(
+        auth,
+        signupEmail.trim(),
+        signupPassword,
+      );
+      navigate("/user-home");
+    } catch (err) {
+      alert(friendlyAuthError(err?.code));
+    } finally {
+      setSubmitting(false);
     }
-
-    const newUser = {
-      email: signupEmail.trim(),
-      password: signupPassword,
-    };
-
-    users.push(newUser);
-    localStorage.setItem("users", JSON.stringify(users));
-    localStorage.setItem("currentUser", JSON.stringify(newUser));
-
-    alert("Account created successfully.");
-    navigate("/user-home");
   };
 
   return (
@@ -204,9 +219,10 @@ export default function AuthPage() {
 
                 <button
                   type="submit"
-                  className="h-14 w-1/2 rounded-[22px] bg-[#000d33] font-semibold text-white hover:bg-[#00154d]"
+                  disabled={submitting}
+                  className="h-14 w-1/2 rounded-[22px] bg-[#000d33] font-semibold text-white hover:bg-[#00154d] disabled:opacity-60"
                 >
-                  Log In
+                  {submitting ? "Logging in..." : "Log In"}
                 </button>
               </div>
             </form>
@@ -302,9 +318,10 @@ export default function AuthPage() {
 
                 <button
                   type="submit"
-                  className="h-14 w-1/2 rounded-[22px] bg-[#000d33] font-semibold text-white hover:bg-[#00154d]"
+                  disabled={submitting}
+                  className="h-14 w-1/2 rounded-[22px] bg-[#000d33] font-semibold text-white hover:bg-[#00154d] disabled:opacity-60"
                 >
-                  Sign Up
+                  {submitting ? "Creating..." : "Sign Up"}
                 </button>
               </div>
             </form>

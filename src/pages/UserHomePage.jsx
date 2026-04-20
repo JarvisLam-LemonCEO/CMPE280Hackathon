@@ -1,7 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+} from "firebase/firestore";
 import { allThemeImages, themeById, themeData } from "../data/galleryData";
 import { ThemeToggle } from "../ThemeContext";
+import { useAuth } from "../lib/AuthContext";
+import { db } from "../lib/firebase";
+import { uploadToCloudinary } from "../lib/cloudinary";
 import {
   Image as ImageIcon,
   LogOut,
@@ -16,14 +31,22 @@ import {
   MessageCircle,
 } from "lucide-react";
 
-const UPLOAD_STORAGE_KEY_PREFIX = "userGalleryUploadsV1";
+/* ------------------------------------ */
+/* Utilities */
+/* ------------------------------------ */
 
-/* ------------------------------------ */
-/* Comment Component */
-/* ------------------------------------ */
+const toMillis = (value) => {
+  if (!value) return 0;
+  if (typeof value === "number") return value;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (typeof value.seconds === "number") return value.seconds * 1000;
+  return 0;
+};
 
 const formatCommentDate = (timestamp) => {
-  const date = new Date(timestamp);
+  const ms = toMillis(timestamp);
+  if (!ms) return "just now";
+  const date = new Date(ms);
   const now = new Date();
   const diffMs = now - date;
   const diffMins = Math.floor(diffMs / 60000);
@@ -42,13 +65,39 @@ const formatCommentDate = (timestamp) => {
   });
 };
 
-// Controlled — comments state is managed by parent, passed via props
-const ImageWithComments = ({ imageId, comments, onAdd, onDelete }) => {
-  const [comment, setComment] = useState("");
+/* ------------------------------------ */
+/* Comment Component (Firestore-backed) */
+/* ------------------------------------ */
 
-  const handleAddComment = () => {
-    if (!comment.trim()) return;
-    onAdd(imageId, comment.trim());
+const ImageWithComments = ({ imageId, currentUid, onAdd, onDelete }) => {
+  const [comment, setComment] = useState("");
+  const [comments, setComments] = useState([]);
+
+  useEffect(() => {
+    if (!imageId) return undefined;
+    const q = query(
+      collection(db, "comments"),
+      where("imageId", "==", imageId),
+      orderBy("createdAt", "desc"),
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setComments(
+          snap.docs.map((d) => ({ id: d.id, ...d.data() })),
+        );
+      },
+      (err) => {
+        console.error("comments snapshot error", err);
+      },
+    );
+    return unsub;
+  }, [imageId]);
+
+  const handleAddComment = async () => {
+    const text = comment.trim();
+    if (!text) return;
+    await onAdd(imageId, text);
     setComment("");
   };
 
@@ -87,29 +136,33 @@ const ImageWithComments = ({ imageId, comments, onAdd, onDelete }) => {
             No comments yet
           </p>
         ) : (
-          [...comments]
-            .map((item, originalIndex) => ({ ...item, originalIndex }))
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .map((item) => (
-              <div key={item.originalIndex} className="comment-item">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="break-words text-sm text-slate-900 dark:text-slate-200">
-                      {item.text}
+          comments.map((item) => (
+            <div key={item.id} className="comment-item">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  {item.authorName && (
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      {item.authorName}
                     </p>
-                    <span className="mt-1 inline-block text-xs text-slate-400 dark:text-slate-500">
-                      {formatCommentDate(item.timestamp)}
-                    </span>
-                  </div>
+                  )}
+                  <p className="break-words text-sm text-slate-900 dark:text-slate-200">
+                    {item.text}
+                  </p>
+                  <span className="mt-1 inline-block text-xs text-slate-400 dark:text-slate-500">
+                    {formatCommentDate(item.createdAt)}
+                  </span>
+                </div>
+                {item.authorUid === currentUid && (
                   <button
-                    onClick={() => onDelete(imageId, item.originalIndex)}
+                    onClick={() => onDelete(item.id)}
                     className="comment-delete-btn"
                   >
                     Delete
                   </button>
-                </div>
+                )}
               </div>
-            ))
+            </div>
+          ))
         )}
       </div>
     </div>
@@ -125,7 +178,7 @@ const PhotoDetailModal = ({
   images,
   onClose,
   onNavigate,
-  getComments,
+  currentUid,
   addComment,
   deleteComment,
 }) => {
@@ -213,7 +266,7 @@ const PhotoDetailModal = ({
             <ImageWithComments
               key={image.id}
               imageId={image.id}
-              comments={getComments(image.id)}
+              currentUid={currentUid}
               onAdd={addComment}
               onDelete={deleteComment}
             />
@@ -225,147 +278,27 @@ const PhotoDetailModal = ({
 };
 
 /* ------------------------------------ */
-/* Utility Functions */
-/* ------------------------------------ */
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () =>
-      reject(new Error("Could not read the selected image."));
-    reader.readAsDataURL(file);
-  });
-}
-
-function getCurrentUserUploadsKey() {
-  try {
-    const rawCurrentUser = localStorage.getItem("currentUser");
-    if (!rawCurrentUser) {
-      return `${UPLOAD_STORAGE_KEY_PREFIX}:guest`;
-    }
-
-    const currentUser = JSON.parse(rawCurrentUser);
-    const userId =
-      typeof currentUser?.email === "string" && currentUser.email.trim()
-        ? currentUser.email.trim().toLowerCase()
-        : "guest";
-
-    return `${UPLOAD_STORAGE_KEY_PREFIX}:${userId}`;
-  } catch {
-    return `${UPLOAD_STORAGE_KEY_PREFIX}:guest`;
-  }
-}
-
-function loadCachedUploads(storageKey) {
-  try {
-    const raw = window.localStorage.getItem(storageKey);
-    if (!raw) return [];
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed;
-  } catch {
-    return [];
-  }
-}
-
-/* ------------------------------------ */
-/* Comments Store Helpers */
-/* ------------------------------------ */
-
-function parseCommentsFromStorage(imageId) {
-  try {
-    const raw = localStorage.getItem(`comments-${imageId}`);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((item) => {
-        if (item && typeof item === "object" && typeof item.text === "string")
-          return {
-            text: item.text,
-            timestamp:
-              typeof item.timestamp === "number" ? item.timestamp : Date.now(),
-          };
-        return null;
-      })
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-/* ------------------------------------ */
 /* Main Page */
 /* ------------------------------------ */
 
 function UserHomePage() {
   const navigate = useNavigate();
-  const userUploadsKey = getCurrentUserUploadsKey();
+  const { user, profile, loading, logout } = useAuth();
 
   const [activeTheme, setActiveTheme] = useState("all");
-  const [uploadedImages, setUploadedImages] = useState(() =>
-    loadCachedUploads(userUploadsKey),
-  );
+  const [uploadedImages, setUploadedImages] = useState([]);
   const [uploadTheme, setUploadTheme] = useState(themeData[0]?.id || "nature");
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploadDescription, setUploadDescription] = useState("");
   const [uploadFile, setUploadFile] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isScrolled, setIsScrolled] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [detailImage, setDetailImage] = useState(null);
-  const [commentsMap, setCommentsMap] = useState({});
-  const [likesMap, setLikesMap] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("likesMap") || "{}");
-    } catch {
-      return {};
-    }
-  });
-
-  const toggleLike = (imageId) => {
-    setLikesMap((prev) => ({ ...prev, [imageId]: !prev[imageId] }));
-  };
-
-  useEffect(() => {
-    localStorage.setItem("likesMap", JSON.stringify(likesMap));
-  }, [likesMap]);
-
-  const getComments = (imageId) =>
-    commentsMap[imageId] ?? parseCommentsFromStorage(imageId);
-
-  const addComment = (imageId, text) => {
-    setCommentsMap((prev) => {
-      const existing = prev[imageId] ?? parseCommentsFromStorage(imageId);
-      return {
-        ...prev,
-        [imageId]: [...existing, { text, timestamp: Date.now() }],
-      };
-    });
-  };
-
-  const deleteComment = (imageId, index) => {
-    setCommentsMap((prev) => {
-      const existing = prev[imageId] ?? parseCommentsFromStorage(imageId);
-      return { ...prev, [imageId]: existing.filter((_, i) => i !== index) };
-    });
-  };
-
-  useEffect(() => {
-    Object.entries(commentsMap).forEach(([imageId, comments]) => {
-      localStorage.setItem(`comments-${imageId}`, JSON.stringify(comments));
-    });
-  }, [commentsMap]);
-
-  useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  const [likesMap, setLikesMap] = useState({});
+  const [commentCounts, setCommentCounts] = useState({});
   const [hiddenGalleryIds, setHiddenGalleryIds] = useState(() => {
     try {
       const raw = localStorage.getItem("hiddenGalleryIds");
@@ -375,15 +308,150 @@ function UserHomePage() {
     }
   });
 
+  const displayName = profile?.displayName || user?.email || "";
+
+  // Redirect unauthenticated users
   useEffect(() => {
-    const storedUser = localStorage.getItem("currentUser");
-    if (!storedUser) {
+    if (!loading && !user) {
       navigate("/auth?mode=login");
     }
-  }, [navigate]);
+  }, [loading, user, navigate]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("currentUser");
+  // Scroll listener
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Persist hidden gallery ids
+  useEffect(() => {
+    localStorage.setItem(
+      "hiddenGalleryIds",
+      JSON.stringify([...hiddenGalleryIds]),
+    );
+  }, [hiddenGalleryIds]);
+
+  // Subscribe to current user's uploads
+  useEffect(() => {
+    if (!user) {
+      setUploadedImages([]);
+      return undefined;
+    }
+    const q = query(
+      collection(db, "uploads"),
+      where("ownerUid", "==", user.uid),
+      orderBy("createdAt", "desc"),
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setUploadedImages(
+          snap.docs.map((d) => {
+            const data = d.data();
+            return {
+              id: d.id,
+              title: data.title,
+              subtitle: data.subtitle,
+              url: data.url,
+              publicId: data.publicId,
+              themeId: data.themeId,
+              themeLabel: data.themeLabel,
+              createdAt: toMillis(data.createdAt),
+              ownerUid: data.ownerUid,
+              ownerName: data.ownerName,
+            };
+          }),
+        );
+      },
+      (err) => {
+        console.error("uploads snapshot error", err);
+      },
+    );
+    return unsub;
+  }, [user]);
+
+  // Subscribe to current user's likes
+  useEffect(() => {
+    if (!user) {
+      setLikesMap({});
+      return undefined;
+    }
+    const q = query(collection(db, "likes"), where("uid", "==", user.uid));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const next = {};
+        snap.docs.forEach((d) => {
+          const data = d.data();
+          if (data?.imageId) next[data.imageId] = true;
+        });
+        setLikesMap(next);
+      },
+      (err) => {
+        console.error("likes snapshot error", err);
+      },
+    );
+    return unsub;
+  }, [user]);
+
+  const toggleLike = async (imageId) => {
+    if (!user || !imageId) return;
+    const likeId = `${user.uid}_${imageId}`;
+    const ref = doc(db, "likes", likeId);
+    const already = Boolean(likesMap[imageId]);
+    // optimistic update
+    setLikesMap((prev) => ({ ...prev, [imageId]: !already }));
+    try {
+      if (already) {
+        await deleteDoc(ref);
+      } else {
+        await setDoc(ref, {
+          uid: user.uid,
+          imageId,
+          createdAt: serverTimestamp(),
+        });
+      }
+    } catch (err) {
+      console.error("toggleLike failed", err);
+      // revert
+      setLikesMap((prev) => ({ ...prev, [imageId]: already }));
+    }
+  };
+
+  const addComment = async (imageId, text) => {
+    if (!user || !imageId || !text) return;
+    try {
+      await addDoc(collection(db, "comments"), {
+        imageId,
+        authorUid: user.uid,
+        authorName: profile?.displayName || user.email || "",
+        authorPhotoURL: profile?.photoURL || "",
+        text,
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("addComment failed", err);
+      alert("Could not post comment.");
+    }
+  };
+
+  const deleteComment = async (commentId) => {
+    if (!commentId) return;
+    try {
+      await deleteDoc(doc(db, "comments", commentId));
+    } catch (err) {
+      console.error("deleteComment failed", err);
+      alert("Could not delete comment.");
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (err) {
+      console.error("logout failed", err);
+    }
     navigate("/");
   };
 
@@ -428,16 +496,32 @@ function UserHomePage() {
     });
   }, [imagesToRender, searchQuery]);
 
+  // Subscribe to comment counts for currently visible images
   useEffect(() => {
-    window.localStorage.setItem(userUploadsKey, JSON.stringify(uploadedImages));
-  }, [uploadedImages, userUploadsKey]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      "hiddenGalleryIds",
-      JSON.stringify([...hiddenGalleryIds]),
-    );
-  }, [hiddenGalleryIds]);
+    const ids = filteredImages.map((img) => img.id).filter(Boolean);
+    if (ids.length === 0) {
+      setCommentCounts({});
+      return undefined;
+    }
+    const unsubs = ids.map((imageId) => {
+      const q = query(
+        collection(db, "comments"),
+        where("imageId", "==", imageId),
+      );
+      return onSnapshot(
+        q,
+        (snap) => {
+          setCommentCounts((prev) => ({ ...prev, [imageId]: snap.size }));
+        },
+        (err) => {
+          console.error("comment count snapshot error", err);
+        },
+      );
+    });
+    return () => {
+      unsubs.forEach((u) => u && u());
+    };
+  }, [filteredImages]);
 
   const toggleSelect = (id) => {
     setSelectedIds((prev) => {
@@ -447,13 +531,23 @@ function UserHomePage() {
     });
   };
 
-  const handleDeleteSelected = () => {
+  const handleDeleteSelected = async () => {
     const uploadedIds = new Set(uploadedImages.map((img) => img.id));
     const toHide = [...selectedIds].filter((id) => !uploadedIds.has(id));
-    setUploadedImages((prev) => prev.filter((img) => !selectedIds.has(img.id)));
+    const toDelete = [...selectedIds].filter((id) => uploadedIds.has(id));
+
     if (toHide.length > 0) {
       setHiddenGalleryIds((prev) => new Set([...prev, ...toHide]));
     }
+
+    for (const id of toDelete) {
+      try {
+        await deleteDoc(doc(db, "uploads", id));
+      } catch (err) {
+        console.error("delete upload failed", err);
+      }
+    }
+
     setSelectedIds(new Set());
   };
 
@@ -461,25 +555,43 @@ function UserHomePage() {
     event.preventDefault();
 
     if (!uploadFile || !uploadDescription.trim() || !uploadTitle.trim()) return;
+    if (!user) {
+      alert("Please log in before uploading.");
+      return;
+    }
 
-    const dataUrl = await readFileAsDataUrl(uploadFile);
-    const now = Date.now();
+    try {
+      setUploading(true);
+      const { url, publicId } = await uploadToCloudinary(uploadFile);
+      await addDoc(collection(db, "uploads"), {
+        ownerUid: user.uid,
+        ownerName: displayName,
+        title: uploadTitle.trim(),
+        subtitle: uploadDescription.trim(),
+        url,
+        publicId,
+        themeId: uploadTheme,
+        themeLabel: themeById[uploadTheme]?.label || "",
+        createdAt: serverTimestamp(),
+      });
+      setUploadTitle("");
+      setUploadDescription("");
+      setUploadFile(null);
+      setShowUploadModal(false);
+    } catch (err) {
+      console.error("upload failed", err);
+      alert(err?.message || "Upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
-    const newUpload = {
-      id: `upload-${uploadTheme}-${now}`,
-      title: uploadTitle.trim(),
-      subtitle: uploadDescription.trim(),
-      url: dataUrl,
-      themeId: uploadTheme,
-      themeLabel: themeById[uploadTheme].label,
-      createdAt: now,
-    };
-
-    setUploadedImages((prev) => [...prev, newUpload]);
-    setUploadTitle("");
-    setUploadDescription("");
-    setUploadFile(null);
-    setShowUploadModal(false);
+  if (loading || !user) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f6f7fb] dark:bg-[#1a2035] text-slate-600 dark:text-slate-300">
+        <p>Loading...</p>
+      </main>
+    );
   }
 
   return (
@@ -668,7 +780,7 @@ function UserHomePage() {
                         className="card-comment-btn"
                       >
                         <MessageCircle size={18} />
-                        <span>{getComments(image.id).length}</span>
+                        <span>{commentCounts[image.id] ?? 0}</span>
                       </button>
                     </div>
                   </div>
@@ -743,15 +855,17 @@ function UserHomePage() {
                   <button
                     type="button"
                     onClick={() => setShowUploadModal(false)}
-                    className="h-12 w-1/2 rounded-2xl border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                    disabled={uploading}
+                    className="h-12 w-1/2 rounded-2xl border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-60"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="h-12 w-1/2 rounded-2xl bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700"
+                    disabled={uploading}
+                    className="h-12 w-1/2 rounded-2xl bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
                   >
-                    Upload
+                    {uploading ? "Uploading..." : "Upload"}
                   </button>
                 </div>
               </form>
@@ -772,7 +886,7 @@ function UserHomePage() {
             const next = filteredImages[idx + dir];
             if (next) setDetailImage(next);
           }}
-          getComments={getComments}
+          currentUid={user.uid}
           addComment={addComment}
           deleteComment={deleteComment}
         />
