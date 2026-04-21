@@ -5,6 +5,8 @@ import {
   collection,
   deleteDoc,
   doc,
+  updateDoc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -29,6 +31,7 @@ import {
   ChevronRight,
   Heart,
   MessageCircle,
+  Share2,
 } from "lucide-react";
 
 /* ------------------------------------ */
@@ -64,6 +67,12 @@ const formatCommentDate = (timestamp) => {
     year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
   });
 };
+
+const resolveShareLink = (imageId) =>
+  `${window.location.origin}/shared/${encodeURIComponent(imageId)}`;
+
+const isOwnedUpload = (image, user) =>
+  Boolean(image?.ownerUid && user?.uid && image.ownerUid === user.uid);
 
 /* ------------------------------------ */
 /* Comment Component (Firestore-backed) */
@@ -181,6 +190,11 @@ const PhotoDetailModal = ({
   currentUid,
   addComment,
   deleteComment,
+  onShare,
+  onStopSharing,
+  shareState,
+  canStopSharing,
+  isShared,
 }) => {
   const overlayRef = useRef(null);
 
@@ -259,6 +273,44 @@ const PhotoDetailModal = ({
             {currentIndex + 1} / {images.length}
           </div>
 
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => onShare(image)}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#28457a] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1d3456]"
+            >
+              <Share2 size={16} />
+              <span>
+                {shareState === "copied"
+                  ? "Link copied"
+                  : shareState === "unshared"
+                    ? "Stopped sharing"
+                  : shareState === "error"
+                    ? "Copy failed"
+                    : "Copy share link"}
+              </span>
+            </button>
+
+            {isShared && (
+              <a
+                href={resolveShareLink(image.id)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Open share page
+              </a>
+            )}
+
+            {canStopSharing && isShared && (
+              <button
+                onClick={() => onStopSharing(image)}
+                className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
+              >
+                {shareState === "unshared" ? "Stopped sharing" : "Stop sharing"}
+              </button>
+            )}
+          </div>
+
           <div className="mt-4 flex flex-1 flex-col overflow-hidden border-t border-slate-100 pt-4 dark:border-slate-700">
             <p className="mb-2 shrink-0 text-sm font-semibold text-slate-600 dark:text-slate-300">
               Comments
@@ -299,6 +351,10 @@ function UserHomePage() {
   const [detailImage, setDetailImage] = useState(null);
   const [likesMap, setLikesMap] = useState({});
   const [commentCounts, setCommentCounts] = useState({});
+  const [shareStatus, setShareStatus] = useState({
+    imageId: "",
+    state: "idle",
+  });
   const [hiddenGalleryIds, setHiddenGalleryIds] = useState(() => {
     try {
       const raw = localStorage.getItem("hiddenGalleryIds");
@@ -360,6 +416,7 @@ function UserHomePage() {
               createdAt: toMillis(data.createdAt),
               ownerUid: data.ownerUid,
               ownerName: data.ownerName,
+              isShared: Boolean(data.isShared),
             };
           }),
         );
@@ -453,6 +510,77 @@ function UserHomePage() {
       console.error("logout failed", err);
     }
     navigate("/");
+  };
+
+  const updateLocalImageShareState = (imageId, isShared) => {
+    setUploadedImages((prev) =>
+      prev.map((item) => (item.id === imageId ? { ...item, isShared } : item)),
+    );
+    setDetailImage((prev) =>
+      prev?.id === imageId ? { ...prev, isShared } : prev,
+    );
+  };
+
+  const updateSharedUpload = async (image) => {
+    if (!image?.id || !isOwnedUpload(image, user)) return;
+
+    try {
+      const uploadRef = doc(db, "uploads", image.id);
+      const uploadSnap = await getDoc(uploadRef);
+      if (uploadSnap.exists() && !uploadSnap.data()?.isShared) {
+        updateLocalImageShareState(image.id, true);
+        await updateDoc(uploadRef, {
+          isShared: true,
+          sharedAt: serverTimestamp(),
+        });
+      }
+    } catch (err) {
+      console.error("mark shared upload failed", err);
+    }
+  };
+
+  const stopSharingUpload = async (image) => {
+    if (!image?.id || !isOwnedUpload(image, user)) return;
+
+    try {
+      updateLocalImageShareState(image.id, false);
+      await updateDoc(doc(db, "uploads", image.id), {
+        isShared: false,
+      });
+      setShareStatus({ imageId: image.id, state: "unshared" });
+      window.setTimeout(() => {
+        setShareStatus((current) =>
+          current.imageId === image.id ? { imageId: "", state: "idle" } : current,
+        );
+      }, 2000);
+    } catch (err) {
+      console.error("stop sharing upload failed", err);
+      updateLocalImageShareState(image.id, true);
+      setShareStatus({ imageId: image.id, state: "error" });
+    }
+  };
+
+  const handleShareImage = async (image) => {
+    if (!image?.id) return;
+
+    const shareLink = resolveShareLink(image.id);
+    setShareStatus({ imageId: image.id, state: "idle" });
+
+    await updateSharedUpload(image);
+
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setShareStatus({ imageId: image.id, state: "copied" });
+    } catch (err) {
+      console.error("share image failed", err);
+      setShareStatus({ imageId: image.id, state: "error" });
+    }
+
+    window.setTimeout(() => {
+      setShareStatus((current) =>
+        current.imageId === image.id ? { imageId: "", state: "idle" } : current,
+      );
+    }, 2000);
   };
 
   const imagesToRender = useMemo(() => {
@@ -572,6 +700,7 @@ function UserHomePage() {
         publicId,
         themeId: uploadTheme,
         themeLabel: themeById[uploadTheme]?.label || "",
+        isShared: false,
         createdAt: serverTimestamp(),
       });
       setUploadTitle("");
@@ -782,6 +911,7 @@ function UserHomePage() {
                         <MessageCircle size={18} />
                         <span>{commentCounts[image.id] ?? 0}</span>
                       </button>
+
                     </div>
                   </div>
                 </article>
@@ -889,6 +1019,13 @@ function UserHomePage() {
           currentUid={user.uid}
           addComment={addComment}
           deleteComment={deleteComment}
+          onShare={handleShareImage}
+          onStopSharing={stopSharingUpload}
+          shareState={
+            shareStatus.imageId === detailImage.id ? shareStatus.state : "idle"
+          }
+          canStopSharing={isOwnedUpload(detailImage, user)}
+          isShared={Boolean(detailImage.isShared)}
         />
       )}
     </>
