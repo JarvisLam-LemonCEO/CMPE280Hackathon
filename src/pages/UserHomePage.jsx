@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   setDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { allThemeImages, themeById, themeData } from "../data/galleryData";
 import { ThemeToggle } from "../ThemeContext";
@@ -32,6 +33,13 @@ import {
   Heart,
   MessageCircle,
   Share2,
+  FolderPlus,
+  Images,
+  Pencil,
+  Plus,
+  Minus,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 
 /* ------------------------------------ */
@@ -75,7 +83,7 @@ const isOwnedUpload = (image, user) =>
   Boolean(image?.ownerUid && user?.uid && image.ownerUid === user.uid);
 
 /* ------------------------------------ */
-/* Comment Component (Firestore-backed) */
+/* Comment Component */
 /* ------------------------------------ */
 
 const ImageWithComments = ({ imageId, currentUid, onAdd, onDelete }) => {
@@ -84,22 +92,23 @@ const ImageWithComments = ({ imageId, currentUid, onAdd, onDelete }) => {
 
   useEffect(() => {
     if (!imageId) return undefined;
+
     const q = query(
       collection(db, "comments"),
       where("imageId", "==", imageId),
       orderBy("createdAt", "desc"),
     );
+
     const unsub = onSnapshot(
       q,
       (snap) => {
-        setComments(
-          snap.docs.map((d) => ({ id: d.id, ...d.data() })),
-        );
+        setComments(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       },
       (err) => {
         console.error("comments snapshot error", err);
       },
     );
+
     return unsub;
   }, [imageId]);
 
@@ -148,7 +157,7 @@ const ImageWithComments = ({ imageId, currentUid, onAdd, onDelete }) => {
           comments.map((item) => (
             <div key={item.id} className="comment-item">
               <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0 flex-1">
                   {item.authorName && (
                     <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                       {item.authorName}
@@ -198,7 +207,6 @@ const PhotoDetailModal = ({
 }) => {
   const overlayRef = useRef(null);
 
-  // Close on Escape, navigate with arrow keys
   useEffect(() => {
     const handleKey = (e) => {
       if (e.key === "Escape") onClose();
@@ -209,7 +217,6 @@ const PhotoDetailModal = ({
     return () => window.removeEventListener("keydown", handleKey);
   }, [onClose, onNavigate]);
 
-  // Prevent body scroll
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -284,9 +291,9 @@ const PhotoDetailModal = ({
                   ? "Link copied"
                   : shareState === "unshared"
                     ? "Stopped sharing"
-                  : shareState === "error"
-                    ? "Copy failed"
-                    : "Copy share link"}
+                    : shareState === "error"
+                      ? "Copy failed"
+                      : "Copy share link"}
               </span>
             </button>
 
@@ -337,14 +344,28 @@ function UserHomePage() {
   const navigate = useNavigate();
   const { user, profile, loading, logout } = useAuth();
 
+  const [viewMode, setViewMode] = useState("photos"); // photos | albums
   const [activeTheme, setActiveTheme] = useState("all");
   const [uploadedImages, setUploadedImages] = useState([]);
+  const [albums, setAlbums] = useState([]);
+  const [albumPhotos, setAlbumPhotos] = useState([]);
+  const [activeAlbumId, setActiveAlbumId] = useState(null);
+
   const [uploadTheme, setUploadTheme] = useState(themeData[0]?.id || "nature");
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploadDescription, setUploadDescription] = useState("");
   const [uploadFile, setUploadFile] = useState(null);
+
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showCreateAlbumModal, setShowCreateAlbumModal] = useState(false);
+  const [showAddToAlbumModal, setShowAddToAlbumModal] = useState(false);
+
+  const [newAlbumName, setNewAlbumName] = useState("");
+  const [renameAlbumValue, setRenameAlbumValue] = useState("");
+
   const [uploading, setUploading] = useState(false);
+  const [albumSaving, setAlbumSaving] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [isScrolled, setIsScrolled] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -355,6 +376,7 @@ function UserHomePage() {
     imageId: "",
     state: "idle",
   });
+
   const [hiddenGalleryIds, setHiddenGalleryIds] = useState(() => {
     try {
       const raw = localStorage.getItem("hiddenGalleryIds");
@@ -366,21 +388,30 @@ function UserHomePage() {
 
   const displayName = profile?.displayName || user?.email || "";
 
-  // Redirect unauthenticated users
+  /* ------------------------------------ */
+  /* Redirect unauthenticated users */
+  /* ------------------------------------ */
+
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth?mode=login");
     }
   }, [loading, user, navigate]);
 
-  // Scroll listener
+  /* ------------------------------------ */
+  /* Scroll listener */
+  /* ------------------------------------ */
+
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Persist hidden gallery ids
+  /* ------------------------------------ */
+  /* Persist hidden gallery ids */
+  /* ------------------------------------ */
+
   useEffect(() => {
     localStorage.setItem(
       "hiddenGalleryIds",
@@ -388,17 +419,22 @@ function UserHomePage() {
     );
   }, [hiddenGalleryIds]);
 
-  // Subscribe to current user's uploads
+  /* ------------------------------------ */
+  /* Uploads */
+  /* ------------------------------------ */
+
   useEffect(() => {
     if (!user) {
       setUploadedImages([]);
       return undefined;
     }
+
     const q = query(
       collection(db, "uploads"),
       where("ownerUid", "==", user.uid),
       orderBy("createdAt", "desc"),
     );
+
     const unsub = onSnapshot(
       q,
       (snap) => {
@@ -425,16 +461,103 @@ function UserHomePage() {
         console.error("uploads snapshot error", err);
       },
     );
+
     return unsub;
   }, [user]);
 
-  // Subscribe to current user's likes
+  /* ------------------------------------ */
+  /* Albums */
+  /* ------------------------------------ */
+
+  useEffect(() => {
+    if (!user) {
+      setAlbums([]);
+      return undefined;
+    }
+
+    const q = query(
+      collection(db, "albums"),
+      where("ownerUid", "==", user.uid),
+      orderBy("updatedAt", "desc"),
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const next = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            name: data.name || "Untitled album",
+            coverPhotoId: data.coverPhotoId || "",
+            ownerUid: data.ownerUid,
+            ownerName: data.ownerName,
+            createdAt: toMillis(data.createdAt),
+            updatedAt: toMillis(data.updatedAt),
+          };
+        });
+        setAlbums(next);
+      },
+      (err) => {
+        console.error("albums snapshot error", err);
+      },
+    );
+
+    return unsub;
+  }, [user]);
+
+  /* ------------------------------------ */
+  /* Album Photos relations */
+  /* ------------------------------------ */
+
+  useEffect(() => {
+    if (!user) {
+      setAlbumPhotos([]);
+      return undefined;
+    }
+
+    const q = query(
+      collection(db, "albumPhotos"),
+      where("ownerUid", "==", user.uid),
+      orderBy("addedAt", "asc"),
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const next = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            albumId: data.albumId,
+            photoId: data.photoId,
+            ownerUid: data.ownerUid,
+            order: typeof data.order === "number" ? data.order : 0,
+            addedAt: toMillis(data.addedAt),
+          };
+        });
+        setAlbumPhotos(next);
+      },
+      (err) => {
+        console.error("albumPhotos snapshot error", err);
+      },
+    );
+
+    return unsub;
+  }, [user]);
+
+  /* ------------------------------------ */
+  /* Likes */
+  /* ------------------------------------ */
+
   useEffect(() => {
     if (!user) {
       setLikesMap({});
       return undefined;
     }
+
     const q = query(collection(db, "likes"), where("uid", "==", user.uid));
+
     const unsub = onSnapshot(
       q,
       (snap) => {
@@ -449,16 +572,162 @@ function UserHomePage() {
         console.error("likes snapshot error", err);
       },
     );
+
     return unsub;
   }, [user]);
 
+  /* ------------------------------------ */
+  /* Derived */
+  /* ------------------------------------ */
+
+  const activeAlbum = useMemo(
+    () => albums.find((album) => album.id === activeAlbumId) || null,
+    [albums, activeAlbumId],
+  );
+
+  useEffect(() => {
+    if (activeAlbum) {
+      setRenameAlbumValue(activeAlbum.name || "");
+    } else {
+      setRenameAlbumValue("");
+    }
+  }, [activeAlbum]);
+
+  const imagesToRender = useMemo(() => {
+    const sortedUploads = [...uploadedImages].sort(
+      (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
+    );
+
+    if (viewMode === "albums" && activeAlbum) {
+      const relations = albumPhotos
+        .filter((item) => item.albumId === activeAlbum.id)
+        .sort((a, b) => a.order - b.order);
+
+      const allPhotosMap = new Map(
+        [...sortedUploads, ...allThemeImages].map((img) => [img.id, img]),
+      );
+
+      return relations
+        .map((rel) => {
+          const image = allPhotosMap.get(rel.photoId);
+          if (!image) return null;
+          return {
+            ...image,
+            themeLabel: image.themeLabel || themeById[image.themeId]?.label || image.themeLabel,
+          };
+        })
+        .filter(Boolean);
+    }
+
+    if (activeTheme === "all") {
+      const galleryImages = allThemeImages.filter(
+        (img) => !hiddenGalleryIds.has(img.id),
+      );
+      return [...sortedUploads, ...galleryImages];
+    }
+
+    const selectedTheme = themeById[activeTheme];
+    if (!selectedTheme) return [];
+
+    const uploadsForTheme = sortedUploads.filter(
+      (image) => image.themeId === activeTheme,
+    );
+
+    return [
+      ...uploadsForTheme,
+      ...selectedTheme.images
+        .filter((img) => !hiddenGalleryIds.has(img.id))
+        .map((image) => ({ ...image, themeLabel: selectedTheme.label })),
+    ];
+  }, [
+    viewMode,
+    activeAlbum,
+    albumPhotos,
+    uploadedImages,
+    activeTheme,
+    hiddenGalleryIds,
+  ]);
+
+  const filteredImages = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) return imagesToRender;
+
+    return imagesToRender.filter((image) => {
+      const title = image.title?.toLowerCase() || "";
+      const subtitle = image.subtitle?.toLowerCase() || "";
+      return title.includes(normalizedQuery) || subtitle.includes(normalizedQuery);
+    });
+  }, [imagesToRender, searchQuery]);
+
+  const albumCards = useMemo(() => {
+    const allPhotosMap = new Map(
+      [...uploadedImages, ...allThemeImages].map((img) => [img.id, img]),
+    );
+
+    return albums.map((album) => {
+      const relations = albumPhotos
+        .filter((item) => item.albumId === album.id)
+        .sort((a, b) => a.order - b.order);
+
+      const coverId = album.coverPhotoId || relations[0]?.photoId || "";
+      const coverImage = coverId ? allPhotosMap.get(coverId) : null;
+
+      return {
+        ...album,
+        count: relations.length,
+        coverUrl: coverImage?.url || "",
+      };
+    });
+  }, [albums, albumPhotos, uploadedImages]);
+
+  /* ------------------------------------ */
+  /* Comment counts */
+  /* ------------------------------------ */
+
+  useEffect(() => {
+    const ids = filteredImages.map((img) => img.id).filter(Boolean);
+
+    if (ids.length === 0) {
+      setCommentCounts({});
+      return undefined;
+    }
+
+    const unsubs = ids.map((imageId) => {
+      const q = query(
+        collection(db, "comments"),
+        where("imageId", "==", imageId),
+      );
+
+      return onSnapshot(
+        q,
+        (snap) => {
+          setCommentCounts((prev) => ({ ...prev, [imageId]: snap.size }));
+        },
+        (err) => {
+          console.error("comment count snapshot error", err);
+        },
+      );
+    });
+
+    return () => {
+      unsubs.forEach((u) => u && u());
+    };
+  }, [filteredImages]);
+
+  /* ------------------------------------ */
+  /* Like / Comment */
+  /* ------------------------------------ */
+
   const toggleLike = async (imageId) => {
     if (!user || !imageId) return;
+
     const likeId = `${user.uid}_${imageId}`;
     const ref = doc(db, "likes", likeId);
     const already = Boolean(likesMap[imageId]);
-    // optimistic update
+
     setLikesMap((prev) => ({ ...prev, [imageId]: !already }));
+
     try {
       if (already) {
         await deleteDoc(ref);
@@ -471,7 +740,6 @@ function UserHomePage() {
       }
     } catch (err) {
       console.error("toggleLike failed", err);
-      // revert
       setLikesMap((prev) => ({ ...prev, [imageId]: already }));
     }
   };
@@ -503,14 +771,9 @@ function UserHomePage() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (err) {
-      console.error("logout failed", err);
-    }
-    navigate("/");
-  };
+  /* ------------------------------------ */
+  /* Share */
+  /* ------------------------------------ */
 
   const updateLocalImageShareState = (imageId, isShared) => {
     setUploadedImages((prev) =>
@@ -583,73 +846,9 @@ function UserHomePage() {
     }, 2000);
   };
 
-  const imagesToRender = useMemo(() => {
-    const sortedUploads = [...uploadedImages].sort(
-      (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
-    );
-
-    if (activeTheme === "all") {
-      const galleryImages = allThemeImages.filter(
-        (img) => !hiddenGalleryIds.has(img.id),
-      );
-      return [...sortedUploads, ...galleryImages];
-    }
-
-    const selectedTheme = themeById[activeTheme];
-    if (!selectedTheme) return [];
-
-    const uploadsForTheme = sortedUploads.filter(
-      (image) => image.themeId === activeTheme,
-    );
-
-    return [
-      ...uploadsForTheme,
-      ...selectedTheme.images
-        .filter((img) => !hiddenGalleryIds.has(img.id))
-        .map((image) => ({ ...image, themeLabel: selectedTheme.label })),
-    ];
-  }, [activeTheme, uploadedImages, hiddenGalleryIds]);
-
-  const filteredImages = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase();
-
-    if (!normalizedQuery) return imagesToRender;
-
-    return imagesToRender.filter((image) => {
-      const title = image.title?.toLowerCase() || "";
-      const subtitle = image.subtitle?.toLowerCase() || "";
-      return (
-        title.includes(normalizedQuery) || subtitle.includes(normalizedQuery)
-      );
-    });
-  }, [imagesToRender, searchQuery]);
-
-  // Subscribe to comment counts for currently visible images
-  useEffect(() => {
-    const ids = filteredImages.map((img) => img.id).filter(Boolean);
-    if (ids.length === 0) {
-      setCommentCounts({});
-      return undefined;
-    }
-    const unsubs = ids.map((imageId) => {
-      const q = query(
-        collection(db, "comments"),
-        where("imageId", "==", imageId),
-      );
-      return onSnapshot(
-        q,
-        (snap) => {
-          setCommentCounts((prev) => ({ ...prev, [imageId]: snap.size }));
-        },
-        (err) => {
-          console.error("comment count snapshot error", err);
-        },
-      );
-    });
-    return () => {
-      unsubs.forEach((u) => u && u());
-    };
-  }, [filteredImages]);
+  /* ------------------------------------ */
+  /* Select / Delete */
+  /* ------------------------------------ */
 
   const toggleSelect = (id) => {
     setSelectedIds((prev) => {
@@ -676,8 +875,196 @@ function UserHomePage() {
       }
     }
 
+    const relationsToDelete = albumPhotos.filter((rel) =>
+      selectedIds.has(rel.photoId),
+    );
+
+    for (const rel of relationsToDelete) {
+      try {
+        await deleteDoc(doc(db, "albumPhotos", rel.id));
+      } catch (err) {
+        console.error("delete album photo relation failed", err);
+      }
+    }
+
     setSelectedIds(new Set());
   };
+
+  /* ------------------------------------ */
+  /* Album actions */
+  /* ------------------------------------ */
+
+  const handleCreateAlbum = async (e) => {
+    e.preventDefault();
+    const name = newAlbumName.trim();
+    if (!name || !user) return;
+
+    try {
+      setAlbumSaving(true);
+      const ref = await addDoc(collection(db, "albums"), {
+        ownerUid: user.uid,
+        ownerName: displayName,
+        name,
+        coverPhotoId: "",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      setNewAlbumName("");
+      setShowCreateAlbumModal(false);
+      setViewMode("albums");
+      setActiveAlbumId(ref.id);
+    } catch (err) {
+      console.error("create album failed", err);
+      alert("Could not create album.");
+    } finally {
+      setAlbumSaving(false);
+    }
+  };
+
+  const handleRenameAlbum = async () => {
+    if (!activeAlbum || !renameAlbumValue.trim()) return;
+
+    try {
+      setAlbumSaving(true);
+      await updateDoc(doc(db, "albums", activeAlbum.id), {
+        name: renameAlbumValue.trim(),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("rename album failed", err);
+      alert("Could not rename album.");
+    } finally {
+      setAlbumSaving(false);
+    }
+  };
+
+  const handleAddSelectedToAlbum = async (albumId) => {
+    if (!albumId || selectedIds.size === 0 || !user) return;
+
+    try {
+      setAlbumSaving(true);
+
+      const currentRelations = albumPhotos
+        .filter((item) => item.albumId === albumId)
+        .sort((a, b) => a.order - b.order);
+
+      const existingPhotoIds = new Set(currentRelations.map((item) => item.photoId));
+      let nextOrder =
+        currentRelations.length > 0
+          ? currentRelations[currentRelations.length - 1].order + 1
+          : 0;
+
+      const selected = [...selectedIds];
+      let firstAddedId = null;
+
+      for (const photoId of selected) {
+        if (existingPhotoIds.has(photoId)) continue;
+        if (!firstAddedId) firstAddedId = photoId;
+
+        await addDoc(collection(db, "albumPhotos"), {
+          ownerUid: user.uid,
+          albumId,
+          photoId,
+          order: nextOrder,
+          addedAt: serverTimestamp(),
+        });
+
+        nextOrder += 1;
+      }
+
+      const albumRef = doc(db, "albums", albumId);
+      const albumSnap = await getDoc(albumRef);
+      if (albumSnap.exists() && !albumSnap.data()?.coverPhotoId && firstAddedId) {
+        await updateDoc(albumRef, {
+          coverPhotoId: firstAddedId,
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        await updateDoc(albumRef, {
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      setShowAddToAlbumModal(false);
+      setSelectedIds(new Set());
+      setViewMode("albums");
+      setActiveAlbumId(albumId);
+    } catch (err) {
+      console.error("add selected to album failed", err);
+      alert("Could not add photos to album.");
+    } finally {
+      setAlbumSaving(false);
+    }
+  };
+
+  const handleRemoveFromAlbum = async (imageId) => {
+    if (!activeAlbum || !imageId) return;
+
+    try {
+      const rel = albumPhotos.find(
+        (item) => item.albumId === activeAlbum.id && item.photoId === imageId,
+      );
+      if (!rel) return;
+
+      await deleteDoc(doc(db, "albumPhotos", rel.id));
+
+      const remainingRelations = albumPhotos
+        .filter((item) => item.albumId === activeAlbum.id && item.id !== rel.id)
+        .sort((a, b) => a.order - b.order);
+
+      const nextCoverId = remainingRelations[0]?.photoId || "";
+
+      await updateDoc(doc(db, "albums", activeAlbum.id), {
+        coverPhotoId: nextCoverId,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("remove from album failed", err);
+      alert("Could not remove photo from album.");
+    }
+  };
+
+  const handleReorderInAlbum = async (imageId, direction) => {
+    if (!activeAlbum || !imageId) return;
+
+    const relations = albumPhotos
+      .filter((item) => item.albumId === activeAlbum.id)
+      .sort((a, b) => a.order - b.order);
+
+    const currentIndex = relations.findIndex((item) => item.photoId === imageId);
+    if (currentIndex === -1) return;
+
+    const targetIndex = currentIndex + direction;
+    if (targetIndex < 0 || targetIndex >= relations.length) return;
+
+    const currentRel = relations[currentIndex];
+    const targetRel = relations[targetIndex];
+
+    try {
+      const batch = writeBatch(db);
+
+      batch.update(doc(db, "albumPhotos", currentRel.id), {
+        order: targetRel.order,
+      });
+
+      batch.update(doc(db, "albumPhotos", targetRel.id), {
+        order: currentRel.order,
+      });
+
+      batch.update(doc(db, "albums", activeAlbum.id), {
+        updatedAt: serverTimestamp(),
+      });
+
+      await batch.commit();
+    } catch (err) {
+      console.error("reorder album photos failed", err);
+      alert("Could not reorder photo.");
+    }
+  };
+
+  /* ------------------------------------ */
+  /* Upload */
+  /* ------------------------------------ */
 
   async function handleUploadSubmit(event) {
     event.preventDefault();
@@ -691,6 +1078,7 @@ function UserHomePage() {
     try {
       setUploading(true);
       const { url, publicId } = await uploadToCloudinary(uploadFile);
+
       await addDoc(collection(db, "uploads"), {
         ownerUid: user.uid,
         ownerName: displayName,
@@ -703,6 +1091,7 @@ function UserHomePage() {
         isShared: false,
         createdAt: serverTimestamp(),
       });
+
       setUploadTitle("");
       setUploadDescription("");
       setUploadFile(null);
@@ -715,9 +1104,22 @@ function UserHomePage() {
     }
   }
 
+  /* ------------------------------------ */
+  /* Logout */
+  /* ------------------------------------ */
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (err) {
+      console.error("logout failed", err);
+    }
+    navigate("/");
+  };
+
   if (loading || !user) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f6f7fb] dark:bg-[#1a2035] text-slate-600 dark:text-slate-300">
+      <main className="flex min-h-screen items-center justify-center bg-[#f6f7fb] text-slate-600 dark:bg-[#1a2035] dark:text-slate-300">
         <p>Loading...</p>
       </main>
     );
@@ -725,16 +1127,14 @@ function UserHomePage() {
 
   return (
     <>
-      {/* Fixed Navbar */}
       <header
         className={`fixed top-0 z-50 flex w-full justify-center transition-all duration-300 ${
           isScrolled
-            ? "bg-white/80 dark:bg-[#222b45]/80 backdrop-blur-md shadow-sm py-4"
-            : "bg-white dark:bg-[#222b45] py-6 shadow-sm dark:shadow-slate-900"
+            ? "bg-white/80 py-4 shadow-sm backdrop-blur-md dark:bg-[#222b45]/80"
+            : "bg-white py-6 shadow-sm dark:bg-[#222b45] dark:shadow-slate-900"
         }`}
       >
         <div className="flex w-full max-w-360 items-center justify-between px-6 sm:px-10 lg:px-16">
-          {/* Logo */}
           <Link to="/" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-[#000d33] to-[#28457a] shadow-lg">
               <ImageIcon size={20} className="text-white" />
@@ -744,17 +1144,34 @@ function UserHomePage() {
             </h2>
           </Link>
 
-          {/* Action buttons */}
           <div className="flex items-center gap-3">
             {selectedIds.size > 0 && (
-              <button
-                onClick={handleDeleteSelected}
-                className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-100 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100"
-              >
-                <Trash2 size={16} />
-                <span>Delete ({selectedIds.size})</span>
-              </button>
+              <>
+                <button
+                  onClick={() => setShowAddToAlbumModal(true)}
+                  className="flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                >
+                  <Plus size={16} />
+                  <span>Add to album ({selectedIds.size})</span>
+                </button>
+
+                <button
+                  onClick={handleDeleteSelected}
+                  className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+                >
+                  <Trash2 size={16} />
+                  <span>Delete ({selectedIds.size})</span>
+                </button>
+              </>
             )}
+
+            <button
+              onClick={() => setShowCreateAlbumModal(true)}
+              className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-600"
+            >
+              <FolderPlus size={16} />
+              <span className="hidden sm:inline">Create Album</span>
+            </button>
 
             <button
               onClick={() => setShowUploadModal(true)}
@@ -766,7 +1183,7 @@ function UserHomePage() {
 
             <button
               onClick={() => navigate("/user-profile")}
-              className="flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-[#0f172f] dark:text-white transition hover:bg-slate-200 dark:hover:bg-slate-700"
+              className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-[#0f172f] transition hover:bg-slate-200 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
             >
               <User size={16} />
               <span className="hidden sm:inline">Profile</span>
@@ -776,7 +1193,7 @@ function UserHomePage() {
 
             <button
               onClick={handleLogout}
-              className="group flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 shadow-sm transition hover:border-red-100 dark:hover:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400"
+              className="group flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-red-100 hover:bg-red-50 hover:text-red-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-red-800 dark:hover:bg-red-900/20 dark:hover:text-red-400"
             >
               <LogOut
                 size={16}
@@ -788,143 +1205,359 @@ function UserHomePage() {
         </div>
       </header>
 
-      <main className="min-h-screen bg-[#f6f7fb] dark:bg-[#1a2035] px-6 pb-8 text-slate-900 dark:text-white sm:px-10 lg:px-16">
-        {/* Page Title */}
+      <main className="min-h-screen bg-[#f6f7fb] px-6 pb-8 text-slate-900 dark:bg-[#1a2035] dark:text-white sm:px-10 lg:px-16">
         <div className="page-container pt-28 pb-0">
           <div className="section-card">
             <p className="page-label">User dashboard</p>
-            <h1 className="page-title">Themed Image Gallery</h1>
+            <h1 className="page-title">
+              {viewMode === "albums"
+                ? activeAlbum
+                  ? activeAlbum.name
+                  : "Albums"
+                : "Themed Image Gallery"}
+            </h1>
             <p className="mt-2 max-w-190 text-[17px] text-[#64748b] dark:text-slate-400">
-              Browse sample images organized by theme.
+              {viewMode === "albums"
+                ? activeAlbum
+                  ? "View and organize photos inside this album."
+                  : "Create albums and organize your photos like Google Photos."
+                : "Browse sample images organized by theme and add photos to albums."}
             </p>
 
-            {/* Search Bar */}
-            <div className="relative mt-6 max-w-130">
-              <Search
-                size={18}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-              />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search images by title or description..."
-                className="h-12 w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-11 pr-4 text-sm text-slate-700 dark:text-slate-200 outline-none transition focus:border-indigo-300 focus:bg-white dark:focus:bg-slate-700 focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
-              />
-            </div>
-
-            {/* Theme Filter */}
-            <div className="mt-6 flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold text-slate-600 dark:text-slate-400">
-                Filter:
-              </span>
-
-              {/* All Themes Button */}
+            <div className="mt-6 flex flex-wrap gap-2">
               <button
-                onClick={() => setActiveTheme("all")}
-                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-                  activeTheme === "all"
+                onClick={() => {
+                  setViewMode("photos");
+                  setActiveAlbumId(null);
+                }}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  viewMode === "photos"
                     ? "bg-[#28457a] text-white shadow-md"
-                    : "border border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    : "border border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
                 }`}
               >
-                All
+                <Images size={16} />
+                Photos
               </button>
 
-              {/* Individual Theme Buttons */}
-              {themeData.map((theme) => (
+              <button
+                onClick={() => {
+                  setViewMode("albums");
+                  setActiveAlbumId(null);
+                }}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  viewMode === "albums" && !activeAlbum
+                    ? "bg-[#28457a] text-white shadow-md"
+                    : "border border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                }`}
+              >
+                <FolderPlus size={16} />
+                Albums
+              </button>
+
+              {activeAlbum && (
                 <button
-                  key={theme.id}
-                  onClick={() => setActiveTheme(theme.id)}
-                  className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-                    activeTheme === theme.id
-                      ? `${theme.accentClass} shadow-md ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#1a2035] ring-slate-400 dark:ring-slate-600`
-                      : `border border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800`
-                  }`}
+                  onClick={() => setActiveAlbumId(null)}
+                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
-                  {theme.label}
+                  Back to Albums
                 </button>
-              ))}
+              )}
             </div>
+
+            {viewMode === "photos" && (
+              <>
+                <div className="relative mt-6 max-w-130">
+                  <Search
+                    size={18}
+                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search images by title or description..."
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:bg-slate-700"
+                  />
+                </div>
+
+                <div className="mt-6 flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-slate-600 dark:text-slate-400">
+                    Filter:
+                  </span>
+
+                  <button
+                    onClick={() => setActiveTheme("all")}
+                    className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                      activeTheme === "all"
+                        ? "bg-[#28457a] text-white shadow-md"
+                        : "border border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    All
+                  </button>
+
+                  {themeData.map((theme) => (
+                    <button
+                      key={theme.id}
+                      onClick={() => setActiveTheme(theme.id)}
+                      className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                        activeTheme === theme.id
+                          ? `${theme.accentClass} shadow-md ring-2 ring-slate-400 ring-offset-2 ring-offset-white dark:ring-slate-600 dark:ring-offset-[#1a2035]`
+                          : "border border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      {theme.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {viewMode === "albums" && activeAlbum && (
+              <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-4 dark:border-slate-700 dark:bg-slate-900/20">
+                <input
+                  type="text"
+                  value={renameAlbumValue}
+                  onChange={(e) => setRenameAlbumValue(e.target.value)}
+                  placeholder="Album name"
+                  className="h-11 min-w-[240px] flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                />
+                <button
+                  onClick={handleRenameAlbum}
+                  disabled={albumSaving || !renameAlbumValue.trim()}
+                  className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:opacity-60"
+                >
+                  <Pencil size={16} />
+                  Rename Album
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Image Section */}
+        {viewMode === "photos" ? (
+          <section className="page-container mt-8 section-card">
+            <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              {filteredImages.map((image) => {
+                const isSelected = selectedIds.has(image.id);
 
-        <section className="page-container mt-8 section-card">
-          <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {filteredImages.map((image) => {
-              const isSelected = selectedIds.has(image.id);
-              return (
-                <article
-                  key={image.id}
-                  className={`overflow-hidden rounded-3xl bg-white dark:bg-[#2a3655] ring-2 ${isSelected ? "ring-indigo-500" : "ring-slate-200 dark:ring-slate-700"}`}
-                >
-                  <div className="relative">
-                    <img
-                      src={image.url}
-                      alt={image.title}
-                      onClick={() => setDetailImage(image)}
-                      className="gallery-card-img"
-                    />
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleSelect(image.id)}
-                      className="absolute top-3 right-3 h-5 w-5 cursor-pointer accent-indigo-600"
-                    />
-                  </div>
-
-                  <div className="gallery-card-body">
-                    <span className="card-theme-badge">{image.themeLabel}</span>
-                    <h2 className="card-title">{image.title}</h2>
-                    <p className="card-subtitle">{image.subtitle}</p>
-
-                    <div className="card-stats">
-                      <button
-                        onClick={() => toggleLike(image.id)}
-                        className="card-stat-btn"
-                      >
-                        <Heart
-                          size={18}
-                          className={
-                            likesMap[image.id]
-                              ? "fill-red-500 text-red-500"
-                              : "text-slate-400 dark:text-slate-500"
-                          }
-                        />
-                        <span
-                          className={
-                            likesMap[image.id]
-                              ? "text-red-500"
-                              : "text-slate-500 dark:text-slate-400"
-                          }
-                        >
-                          {likesMap[image.id] ? "Liked" : "Like"}
-                        </span>
-                      </button>
-
-                      <button
+                return (
+                  <article
+                    key={image.id}
+                    className={`overflow-hidden rounded-3xl bg-white ring-2 dark:bg-[#2a3655] ${
+                      isSelected
+                        ? "ring-indigo-500"
+                        : "ring-slate-200 dark:ring-slate-700"
+                    }`}
+                  >
+                    <div className="relative">
+                      <img
+                        src={image.url}
+                        alt={image.title}
                         onClick={() => setDetailImage(image)}
-                        className="card-comment-btn"
-                      >
-                        <MessageCircle size={18} />
-                        <span>{commentCounts[image.id] ?? 0}</span>
-                      </button>
-
+                        className="gallery-card-img"
+                      />
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(image.id)}
+                        className="absolute right-3 top-3 h-5 w-5 cursor-pointer accent-indigo-600"
+                      />
                     </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
 
-        {/* Upload Modal */}
+                    <div className="gallery-card-body">
+                      <span className="card-theme-badge">{image.themeLabel}</span>
+                      <h2 className="card-title">{image.title}</h2>
+                      <p className="card-subtitle">{image.subtitle}</p>
+
+                      <div className="card-stats">
+                        <button
+                          onClick={() => toggleLike(image.id)}
+                          className="card-stat-btn"
+                        >
+                          <Heart
+                            size={18}
+                            className={
+                              likesMap[image.id]
+                                ? "fill-red-500 text-red-500"
+                                : "text-slate-400 dark:text-slate-500"
+                            }
+                          />
+                          <span
+                            className={
+                              likesMap[image.id]
+                                ? "text-red-500"
+                                : "text-slate-500 dark:text-slate-400"
+                            }
+                          >
+                            {likesMap[image.id] ? "Liked" : "Like"}
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={() => setDetailImage(image)}
+                          className="card-comment-btn"
+                        >
+                          <MessageCircle size={18} />
+                          <span>{commentCounts[image.id] ?? 0}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ) : !activeAlbum ? (
+          <section className="page-container mt-8 section-card">
+            {albumCards.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-slate-300 p-10 text-center dark:border-slate-700">
+                <p className="text-lg font-semibold text-slate-700 dark:text-slate-200">
+                  No albums yet
+                </p>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                  Create your first album to organize photos.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {albumCards.map((album) => (
+                  <button
+                    key={album.id}
+                    onClick={() => setActiveAlbumId(album.id)}
+                    className="overflow-hidden rounded-3xl bg-white text-left ring-2 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-[#2a3655] dark:ring-slate-700"
+                  >
+                    <div className="aspect-[4/3] w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
+                      {album.coverUrl ? (
+                        <img
+                          src={album.coverUrl}
+                          alt={album.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-slate-400">
+                          <FolderPlus size={40} />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-5">
+                      <h3 className="text-lg font-bold text-[#0f172f] dark:text-white">
+                        {album.name}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                        {album.count} {album.count === 1 ? "photo" : "photos"}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        ) : (
+          <section className="page-container mt-8 section-card">
+            {filteredImages.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-slate-300 p-10 text-center dark:border-slate-700">
+                <p className="text-lg font-semibold text-slate-700 dark:text-slate-200">
+                  This album is empty
+                </p>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                  Select photos in the Photos tab and add them to this album.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredImages.map((image, index) => (
+                  <article
+                    key={image.id}
+                    className="overflow-hidden rounded-3xl bg-white ring-2 ring-slate-200 dark:bg-[#2a3655] dark:ring-slate-700"
+                  >
+                    <div className="relative">
+                      <img
+                        src={image.url}
+                        alt={image.title}
+                        onClick={() => setDetailImage(image)}
+                        className="gallery-card-img"
+                      />
+                    </div>
+
+                    <div className="gallery-card-body">
+                      <span className="card-theme-badge">{image.themeLabel}</span>
+                      <h2 className="card-title">{image.title}</h2>
+                      <p className="card-subtitle">{image.subtitle}</p>
+
+                      <div className="card-stats">
+                        <button
+                          onClick={() => toggleLike(image.id)}
+                          className="card-stat-btn"
+                        >
+                          <Heart
+                            size={18}
+                            className={
+                              likesMap[image.id]
+                                ? "fill-red-500 text-red-500"
+                                : "text-slate-400 dark:text-slate-500"
+                            }
+                          />
+                          <span
+                            className={
+                              likesMap[image.id]
+                                ? "text-red-500"
+                                : "text-slate-500 dark:text-slate-400"
+                            }
+                          >
+                            {likesMap[image.id] ? "Liked" : "Like"}
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={() => setDetailImage(image)}
+                          className="card-comment-btn"
+                        >
+                          <MessageCircle size={18} />
+                          <span>{commentCounts[image.id] ?? 0}</span>
+                        </button>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          onClick={() => handleReorderInAlbum(image.id, -1)}
+                          disabled={index === 0}
+                          className="inline-flex items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                        >
+                          <ArrowUp size={14} />
+                          Up
+                        </button>
+
+                        <button
+                          onClick={() => handleReorderInAlbum(image.id, 1)}
+                          disabled={index === filteredImages.length - 1}
+                          className="inline-flex items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                        >
+                          <ArrowDown size={14} />
+                          Down
+                        </button>
+
+                        <button
+                          onClick={() => handleRemoveFromAlbum(image.id)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
+                        >
+                          <Minus size={14} />
+                          Remove from album
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {showUploadModal && (
           <div className="modal-overlay">
-            <div className="w-full max-w-125 rounded-[28px] bg-white dark:bg-[#2a3655] p-8 shadow-xl">
+            <div className="w-full max-w-125 rounded-[28px] bg-white p-8 shadow-xl dark:bg-[#2a3655]">
               <h2 className="text-[24px] font-bold text-[#0f172f] dark:text-white">
                 Upload Image
               </h2>
@@ -986,7 +1619,7 @@ function UserHomePage() {
                     type="button"
                     onClick={() => setShowUploadModal(false)}
                     disabled={uploading}
-                    className="h-12 w-1/2 rounded-2xl border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-60"
+                    className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
                   >
                     Cancel
                   </button>
@@ -999,6 +1632,107 @@ function UserHomePage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {showCreateAlbumModal && (
+          <div className="modal-overlay">
+            <div className="w-full max-w-[520px] rounded-[28px] bg-white p-8 shadow-xl dark:bg-[#2a3655]">
+              <h2 className="text-[24px] font-bold text-[#0f172f] dark:text-white">
+                Create Album
+              </h2>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Create a new album for selected or future photos.
+              </p>
+
+              <form className="mt-6 space-y-4" onSubmit={handleCreateAlbum}>
+                <div>
+                  <label className="form-label">Album Name</label>
+                  <input
+                    type="text"
+                    value={newAlbumName}
+                    onChange={(e) => setNewAlbumName(e.target.value)}
+                    placeholder="Vacation 2026"
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateAlbumModal(false);
+                      setNewAlbumName("");
+                    }}
+                    disabled={albumSaving}
+                    className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={albumSaving || !newAlbumName.trim()}
+                    className="h-12 w-1/2 rounded-2xl bg-amber-500 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-60"
+                  >
+                    {albumSaving ? "Creating..." : "Create Album"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showAddToAlbumModal && (
+          <div className="modal-overlay">
+            <div className="w-full max-w-[560px] rounded-[28px] bg-white p-8 shadow-xl dark:bg-[#2a3655]">
+              <h2 className="text-[24px] font-bold text-[#0f172f] dark:text-white">
+                Add to Album
+              </h2>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Choose an album for the selected photos.
+              </p>
+
+              <div className="mt-6 space-y-3">
+                {albums.length === 0 ? (
+                  <p className="text-sm text-red-500">
+                    No albums found. Create an album first.
+                  </p>
+                ) : (
+                  albums.map((album) => (
+                    <button
+                      key={album.id}
+                      onClick={() => handleAddSelectedToAlbum(album.id)}
+                      disabled={albumSaving}
+                      className="flex w-full items-center justify-between rounded-2xl border border-slate-200 px-4 py-3 text-left transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800"
+                    >
+                      <div>
+                        <p className="font-semibold text-slate-800 dark:text-slate-200">
+                          {album.name}
+                        </p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          Add {selectedIds.size} selected photo
+                          {selectedIds.size === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      <Plus size={18} className="text-slate-500" />
+                    </button>
+                  ))
+                )}
+
+                <div className="flex gap-3 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddToAlbumModal(false)}
+                    disabled={albumSaving}
+                    className="h-12 w-full rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
