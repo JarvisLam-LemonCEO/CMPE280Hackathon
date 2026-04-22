@@ -15,7 +15,7 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore";
-import { allThemeImages, themeById, themeData } from "../data/galleryData";
+import { themeById, themeData } from "../data/galleryData";
 import { ThemeToggle } from "../ThemeContext";
 import { useAuth } from "../lib/AuthContext";
 import { db } from "../lib/firebase";
@@ -38,9 +38,14 @@ import {
   Pencil,
   Plus,
   Minus,
-  ArrowUp,
-  ArrowDown,
 } from "lucide-react";
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+} from "@hello-pangea/dnd";
+
+
 
 /* ------------------------------------ */
 /* Utilities */
@@ -344,7 +349,7 @@ function UserHomePage() {
   const navigate = useNavigate();
   const { user, profile, loading, logout } = useAuth();
 
-  const [viewMode, setViewMode] = useState("photos"); // photos | albums
+  const [viewMode, setViewMode] = useState("photos");
   const [activeTheme, setActiveTheme] = useState("all");
   const [uploadedImages, setUploadedImages] = useState([]);
   const [albums, setAlbums] = useState([]);
@@ -388,9 +393,15 @@ function UserHomePage() {
 
   const displayName = profile?.displayName || user?.email || "";
 
-  /* ------------------------------------ */
-  /* Redirect unauthenticated users */
-  /* ------------------------------------ */
+  const flatThemeImages = useMemo(() => {
+    return themeData.flatMap((theme) =>
+      (theme.images || []).map((image) => ({
+        ...image,
+        themeId: image.themeId || theme.id,
+        themeLabel: image.themeLabel || theme.label,
+      })),
+    );
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -398,19 +409,11 @@ function UserHomePage() {
     }
   }, [loading, user, navigate]);
 
-  /* ------------------------------------ */
-  /* Scroll listener */
-  /* ------------------------------------ */
-
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-
-  /* ------------------------------------ */
-  /* Persist hidden gallery ids */
-  /* ------------------------------------ */
 
   useEffect(() => {
     localStorage.setItem(
@@ -418,10 +421,6 @@ function UserHomePage() {
       JSON.stringify([...hiddenGalleryIds]),
     );
   }, [hiddenGalleryIds]);
-
-  /* ------------------------------------ */
-  /* Uploads */
-  /* ------------------------------------ */
 
   useEffect(() => {
     if (!user) {
@@ -459,15 +458,12 @@ function UserHomePage() {
       },
       (err) => {
         console.error("uploads snapshot error", err);
+        alert(err?.message || "Uploads failed to load.");
       },
     );
 
     return unsub;
   }, [user]);
-
-  /* ------------------------------------ */
-  /* Albums */
-  /* ------------------------------------ */
 
   useEffect(() => {
     if (!user) {
@@ -478,37 +474,36 @@ function UserHomePage() {
     const q = query(
       collection(db, "albums"),
       where("ownerUid", "==", user.uid),
-      orderBy("updatedAt", "desc"),
     );
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const next = snap.docs.map((d) => {
-          const data = d.data();
-          return {
-            id: d.id,
-            name: data.name || "Untitled album",
-            coverPhotoId: data.coverPhotoId || "",
-            ownerUid: data.ownerUid,
-            ownerName: data.ownerName,
-            createdAt: toMillis(data.createdAt),
-            updatedAt: toMillis(data.updatedAt),
-          };
-        });
+        const next = snap.docs
+          .map((d) => {
+            const data = d.data();
+            return {
+              id: d.id,
+              name: data.name || "Untitled album",
+              coverPhotoId: data.coverPhotoId || "",
+              ownerUid: data.ownerUid,
+              ownerName: data.ownerName,
+              createdAt: toMillis(data.createdAt),
+              updatedAt: toMillis(data.updatedAt),
+            };
+          })
+          .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
         setAlbums(next);
       },
       (err) => {
         console.error("albums snapshot error", err);
+        alert(err?.message || "Album list failed to load.");
       },
     );
 
     return unsub;
   }, [user]);
-
-  /* ------------------------------------ */
-  /* Album Photos relations */
-  /* ------------------------------------ */
 
   useEffect(() => {
     if (!user) {
@@ -519,36 +514,40 @@ function UserHomePage() {
     const q = query(
       collection(db, "albumPhotos"),
       where("ownerUid", "==", user.uid),
-      orderBy("addedAt", "asc"),
     );
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const next = snap.docs.map((d) => {
-          const data = d.data();
-          return {
-            id: d.id,
-            albumId: data.albumId,
-            photoId: data.photoId,
-            ownerUid: data.ownerUid,
-            order: typeof data.order === "number" ? data.order : 0,
-            addedAt: toMillis(data.addedAt),
-          };
-        });
+        const next = snap.docs
+          .map((d) => {
+            const data = d.data();
+            return {
+              id: d.id,
+              albumId: data.albumId,
+              photoId: data.photoId,
+              ownerUid: data.ownerUid,
+              order: typeof data.order === "number" ? data.order : 0,
+              addedAt: toMillis(data.addedAt),
+            };
+          })
+          .sort((a, b) => {
+            if (a.albumId !== b.albumId) {
+              return String(a.albumId).localeCompare(String(b.albumId));
+            }
+            return (a.order || 0) - (b.order || 0);
+          });
+
         setAlbumPhotos(next);
       },
       (err) => {
         console.error("albumPhotos snapshot error", err);
+        alert(err?.message || "Album photos failed to load.");
       },
     );
 
     return unsub;
   }, [user]);
-
-  /* ------------------------------------ */
-  /* Likes */
-  /* ------------------------------------ */
 
   useEffect(() => {
     if (!user) {
@@ -576,10 +575,6 @@ function UserHomePage() {
     return unsub;
   }, [user]);
 
-  /* ------------------------------------ */
-  /* Derived */
-  /* ------------------------------------ */
-
   const activeAlbum = useMemo(
     () => albums.find((album) => album.id === activeAlbumId) || null,
     [albums, activeAlbumId],
@@ -593,6 +588,18 @@ function UserHomePage() {
     }
   }, [activeAlbum]);
 
+  const allPhotosMap = useMemo(() => {
+    return new Map(
+      [...uploadedImages, ...flatThemeImages].map((img) => [
+        img.id,
+        {
+          ...img,
+          themeLabel: img.themeLabel || themeById[img.themeId]?.label || "Gallery",
+        },
+      ]),
+    );
+  }, [uploadedImages, flatThemeImages]);
+
   const imagesToRender = useMemo(() => {
     const sortedUploads = [...uploadedImages].sort(
       (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
@@ -603,24 +610,13 @@ function UserHomePage() {
         .filter((item) => item.albumId === activeAlbum.id)
         .sort((a, b) => a.order - b.order);
 
-      const allPhotosMap = new Map(
-        [...sortedUploads, ...allThemeImages].map((img) => [img.id, img]),
-      );
-
       return relations
-        .map((rel) => {
-          const image = allPhotosMap.get(rel.photoId);
-          if (!image) return null;
-          return {
-            ...image,
-            themeLabel: image.themeLabel || themeById[image.themeId]?.label || image.themeLabel,
-          };
-        })
+        .map((rel) => allPhotosMap.get(rel.photoId))
         .filter(Boolean);
     }
 
     if (activeTheme === "all") {
-      const galleryImages = allThemeImages.filter(
+      const galleryImages = flatThemeImages.filter(
         (img) => !hiddenGalleryIds.has(img.id),
       );
       return [...sortedUploads, ...galleryImages];
@@ -635,17 +631,23 @@ function UserHomePage() {
 
     return [
       ...uploadsForTheme,
-      ...selectedTheme.images
+      ...(selectedTheme.images || [])
         .filter((img) => !hiddenGalleryIds.has(img.id))
-        .map((image) => ({ ...image, themeLabel: selectedTheme.label })),
+        .map((image) => ({
+          ...image,
+          themeId: image.themeId || selectedTheme.id,
+          themeLabel: image.themeLabel || selectedTheme.label,
+        })),
     ];
   }, [
     viewMode,
     activeAlbum,
     albumPhotos,
     uploadedImages,
+    flatThemeImages,
     activeTheme,
     hiddenGalleryIds,
+    allPhotosMap,
   ]);
 
   const filteredImages = useMemo(() => {
@@ -661,10 +663,6 @@ function UserHomePage() {
   }, [imagesToRender, searchQuery]);
 
   const albumCards = useMemo(() => {
-    const allPhotosMap = new Map(
-      [...uploadedImages, ...allThemeImages].map((img) => [img.id, img]),
-    );
-
     return albums.map((album) => {
       const relations = albumPhotos
         .filter((item) => item.albumId === album.id)
@@ -679,11 +677,7 @@ function UserHomePage() {
         coverUrl: coverImage?.url || "",
       };
     });
-  }, [albums, albumPhotos, uploadedImages]);
-
-  /* ------------------------------------ */
-  /* Comment counts */
-  /* ------------------------------------ */
+  }, [albums, albumPhotos, allPhotosMap]);
 
   useEffect(() => {
     const ids = filteredImages.map((img) => img.id).filter(Boolean);
@@ -714,10 +708,6 @@ function UserHomePage() {
       unsubs.forEach((u) => u && u());
     };
   }, [filteredImages]);
-
-  /* ------------------------------------ */
-  /* Like / Comment */
-  /* ------------------------------------ */
 
   const toggleLike = async (imageId) => {
     if (!user || !imageId) return;
@@ -770,10 +760,6 @@ function UserHomePage() {
       alert("Could not delete comment.");
     }
   };
-
-  /* ------------------------------------ */
-  /* Share */
-  /* ------------------------------------ */
 
   const updateLocalImageShareState = (imageId, isShared) => {
     setUploadedImages((prev) =>
@@ -846,10 +832,6 @@ function UserHomePage() {
     }, 2000);
   };
 
-  /* ------------------------------------ */
-  /* Select / Delete */
-  /* ------------------------------------ */
-
   const toggleSelect = (id) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -890,10 +872,6 @@ function UserHomePage() {
     setSelectedIds(new Set());
   };
 
-  /* ------------------------------------ */
-  /* Album actions */
-  /* ------------------------------------ */
-
   const handleCreateAlbum = async (e) => {
     e.preventDefault();
     const name = newAlbumName.trim();
@@ -909,13 +887,14 @@ function UserHomePage() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+
       setNewAlbumName("");
       setShowCreateAlbumModal(false);
       setViewMode("albums");
       setActiveAlbumId(ref.id);
     } catch (err) {
       console.error("create album failed", err);
-      alert("Could not create album.");
+      alert(err?.message || "Could not create album.");
     } finally {
       setAlbumSaving(false);
     }
@@ -932,7 +911,42 @@ function UserHomePage() {
       });
     } catch (err) {
       console.error("rename album failed", err);
-      alert("Could not rename album.");
+      alert(err?.message || "Could not rename album.");
+    } finally {
+      setAlbumSaving(false);
+    }
+  };
+
+  const handleDeleteAlbum = async () => {
+    if (!activeAlbum || !user) return;
+
+    const confirmed = window.confirm(
+      `Delete album "${activeAlbum.name}"? Photos will stay in your library.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setAlbumSaving(true);
+
+      const relations = albumPhotos.filter(
+        (item) => item.albumId === activeAlbum.id,
+      );
+
+      const batch = writeBatch(db);
+
+      relations.forEach((rel) => {
+        batch.delete(doc(db, "albumPhotos", rel.id));
+      });
+
+      batch.delete(doc(db, "albums", activeAlbum.id));
+
+      await batch.commit();
+
+      setActiveAlbumId(null);
+      setViewMode("albums");
+    } catch (err) {
+      console.error("delete album failed", err);
+      alert(err?.message || "Could not delete album.");
     } finally {
       setAlbumSaving(false);
     }
@@ -974,6 +988,7 @@ function UserHomePage() {
 
       const albumRef = doc(db, "albums", albumId);
       const albumSnap = await getDoc(albumRef);
+
       if (albumSnap.exists() && !albumSnap.data()?.coverPhotoId && firstAddedId) {
         await updateDoc(albumRef, {
           coverPhotoId: firstAddedId,
@@ -991,7 +1006,7 @@ function UserHomePage() {
       setActiveAlbumId(albumId);
     } catch (err) {
       console.error("add selected to album failed", err);
-      alert("Could not add photos to album.");
+      alert(err?.message || "Could not add photos to album.");
     } finally {
       setAlbumSaving(false);
     }
@@ -1020,35 +1035,40 @@ function UserHomePage() {
       });
     } catch (err) {
       console.error("remove from album failed", err);
-      alert("Could not remove photo from album.");
+      alert(err?.message || "Could not remove photo from album.");
     }
   };
 
-  const handleReorderInAlbum = async (imageId, direction) => {
-    if (!activeAlbum || !imageId) return;
+  const handleAlbumDragEnd = async (result) => {
+    if (!activeAlbum) return;
+    if (!result.destination) return;
+    if (searchQuery.trim()) {
+      alert("Clear search before rearranging album photos.");
+      return;
+    }
+
+    const sourceIndex = result.source.index;
+    const destinationIndex = result.destination.index;
+
+    if (sourceIndex === destinationIndex) return;
 
     const relations = albumPhotos
       .filter((item) => item.albumId === activeAlbum.id)
       .sort((a, b) => a.order - b.order);
 
-    const currentIndex = relations.findIndex((item) => item.photoId === imageId);
-    if (currentIndex === -1) return;
-
-    const targetIndex = currentIndex + direction;
-    if (targetIndex < 0 || targetIndex >= relations.length) return;
-
-    const currentRel = relations[currentIndex];
-    const targetRel = relations[targetIndex];
+    const reordered = [...relations];
+    const [moved] = reordered.splice(sourceIndex, 1);
+    reordered.splice(destinationIndex, 0, moved);
 
     try {
+      setAlbumSaving(true);
+
       const batch = writeBatch(db);
 
-      batch.update(doc(db, "albumPhotos", currentRel.id), {
-        order: targetRel.order,
-      });
-
-      batch.update(doc(db, "albumPhotos", targetRel.id), {
-        order: currentRel.order,
+      reordered.forEach((item, index) => {
+        batch.update(doc(db, "albumPhotos", item.id), {
+          order: index,
+        });
       });
 
       batch.update(doc(db, "albums", activeAlbum.id), {
@@ -1057,14 +1077,12 @@ function UserHomePage() {
 
       await batch.commit();
     } catch (err) {
-      console.error("reorder album photos failed", err);
-      alert("Could not reorder photo.");
+      console.error("drag reorder failed", err);
+      alert(err?.message || "Could not reorder album photos.");
+    } finally {
+      setAlbumSaving(false);
     }
   };
-
-  /* ------------------------------------ */
-  /* Upload */
-  /* ------------------------------------ */
 
   async function handleUploadSubmit(event) {
     event.preventDefault();
@@ -1103,10 +1121,6 @@ function UserHomePage() {
       setUploading(false);
     }
   }
-
-  /* ------------------------------------ */
-  /* Logout */
-  /* ------------------------------------ */
 
   const handleLogout = async () => {
     try {
@@ -1216,6 +1230,7 @@ function UserHomePage() {
                   : "Albums"
                 : "Themed Image Gallery"}
             </h1>
+
             <p className="mt-2 max-w-190 text-[17px] text-[#64748b] dark:text-slate-400">
               {viewMode === "albums"
                 ? activeAlbum
@@ -1323,6 +1338,7 @@ function UserHomePage() {
                   placeholder="Album name"
                   className="h-11 min-w-[240px] flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                 />
+
                 <button
                   onClick={handleRenameAlbum}
                   disabled={albumSaving || !renameAlbumValue.trim()}
@@ -1330,6 +1346,15 @@ function UserHomePage() {
                 >
                   <Pencil size={16} />
                   Rename Album
+                </button>
+
+                <button
+                  onClick={handleDeleteAlbum}
+                  disabled={albumSaving}
+                  className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-60 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
+                >
+                  <Trash2 size={16} />
+                  Delete Album
                 </button>
               </div>
             )}
@@ -1467,90 +1492,105 @@ function UserHomePage() {
                 </p>
               </div>
             ) : (
-              <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {filteredImages.map((image, index) => (
-                  <article
-                    key={image.id}
-                    className="overflow-hidden rounded-3xl bg-white ring-2 ring-slate-200 dark:bg-[#2a3655] dark:ring-slate-700"
-                  >
-                    <div className="relative">
-                      <img
-                        src={image.url}
-                        alt={image.title}
-                        onClick={() => setDetailImage(image)}
-                        className="gallery-card-img"
+              <DragDropContext onDragEnd={handleAlbumDragEnd}>
+  <Droppable droppableId="album-photos" direction="horizontal">
+    {(provided, snapshot) => (
+      <div
+        ref={provided.innerRef}
+        {...provided.droppableProps}
+        className={`mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 transition-all ${
+          snapshot.isDraggingOver
+            ? "rounded-3xl bg-slate-50/70 p-2 dark:bg-slate-800/20"
+            : ""
+        }`}
+      >
+        {filteredImages.map((image, index) => (
+          <Draggable
+            key={image.id}
+            draggableId={image.id}
+            index={index}
+            isDragDisabled={Boolean(searchQuery.trim())}
+          >
+            {(provided, snapshot) => (
+              <article
+                ref={provided.innerRef}
+                {...provided.draggableProps}
+                {...provided.dragHandleProps}
+                style={provided.draggableProps.style}
+                className={`overflow-hidden rounded-3xl bg-white ring-2 transition-transform transition-shadow duration-200 dark:bg-[#2a3655] dark:ring-slate-700 ${
+                  snapshot.isDragging
+                    ? "z-50 ring-indigo-500 shadow-2xl"
+                    : "ring-slate-200"
+                }`}
+              >
+                <div className="relative">
+                  <img
+                    src={image.url}
+                    alt={image.title}
+                    onClick={() => {
+                      if (!snapshot.isDragging) setDetailImage(image);
+                    }}
+                    className="gallery-card-img"
+                  />
+                </div>
+
+                <div className="gallery-card-body">
+                  <span className="card-theme-badge">{image.themeLabel}</span>
+                  <h2 className="card-title">{image.title}</h2>
+                  <p className="card-subtitle">{image.subtitle}</p>
+
+                  <div className="card-stats">
+                    <button
+                      onClick={() => toggleLike(image.id)}
+                      className="card-stat-btn"
+                    >
+                      <Heart
+                        size={18}
+                        className={
+                          likesMap[image.id]
+                            ? "fill-red-500 text-red-500"
+                            : "text-slate-400 dark:text-slate-500"
+                        }
                       />
-                    </div>
+                      <span
+                        className={
+                          likesMap[image.id]
+                            ? "text-red-500"
+                            : "text-slate-500 dark:text-slate-400"
+                        }
+                      >
+                        {likesMap[image.id] ? "Liked" : "Like"}
+                      </span>
+                    </button>
 
-                    <div className="gallery-card-body">
-                      <span className="card-theme-badge">{image.themeLabel}</span>
-                      <h2 className="card-title">{image.title}</h2>
-                      <p className="card-subtitle">{image.subtitle}</p>
+                    <button
+                      onClick={() => setDetailImage(image)}
+                      className="card-comment-btn"
+                    >
+                      <MessageCircle size={18} />
+                      <span>{commentCounts[image.id] ?? 0}</span>
+                    </button>
+                  </div>
 
-                      <div className="card-stats">
-                        <button
-                          onClick={() => toggleLike(image.id)}
-                          className="card-stat-btn"
-                        >
-                          <Heart
-                            size={18}
-                            className={
-                              likesMap[image.id]
-                                ? "fill-red-500 text-red-500"
-                                : "text-slate-400 dark:text-slate-500"
-                            }
-                          />
-                          <span
-                            className={
-                              likesMap[image.id]
-                                ? "text-red-500"
-                                : "text-slate-500 dark:text-slate-400"
-                            }
-                          >
-                            {likesMap[image.id] ? "Liked" : "Like"}
-                          </span>
-                        </button>
-
-                        <button
-                          onClick={() => setDetailImage(image)}
-                          className="card-comment-btn"
-                        >
-                          <MessageCircle size={18} />
-                          <span>{commentCounts[image.id] ?? 0}</span>
-                        </button>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <button
-                          onClick={() => handleReorderInAlbum(image.id, -1)}
-                          disabled={index === 0}
-                          className="inline-flex items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
-                        >
-                          <ArrowUp size={14} />
-                          Up
-                        </button>
-
-                        <button
-                          onClick={() => handleReorderInAlbum(image.id, 1)}
-                          disabled={index === filteredImages.length - 1}
-                          className="inline-flex items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
-                        >
-                          <ArrowDown size={14} />
-                          Down
-                        </button>
-
-                        <button
-                          onClick={() => handleRemoveFromAlbum(image.id)}
-                          className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
-                        >
-                          <Minus size={14} />
-                          Remove from album
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleRemoveFromAlbum(image.id)}
+                      className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
+                    >
+                      <Minus size={14} />
+                      Remove from album
+                    </button>
+                  </div>
+                </div>
+              </article>
+            )}
+          </Draggable>
+        ))}
+        {provided.placeholder}
+      </div>
+    )}
+  </Droppable>
+</DragDropContext>
             )}
           </section>
         )}
