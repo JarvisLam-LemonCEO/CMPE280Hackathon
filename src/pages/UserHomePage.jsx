@@ -44,8 +44,120 @@ import {
   Droppable,
   Draggable,
 } from "@hello-pangea/dnd";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  rectSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
+const SortableAlbumPhotoCard = ({
+  image,
+  likesMap,
+  commentCounts,
+  toggleLike,
+  setDetailImage,
+  handleRemoveFromAlbum,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: image.id });
 
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <article
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={`overflow-hidden rounded-3xl bg-white ring-2 transition-shadow dark:bg-[#2a3655] dark:ring-slate-700 ${
+        isDragging
+          ? "z-50 ring-indigo-500 shadow-2xl opacity-90"
+          : "ring-slate-200"
+      }`}
+    >
+      <div className="relative">
+        <img
+          src={image.url}
+          alt={image.title}
+          onClick={() => {
+            if (!isDragging) setDetailImage(image);
+          }}
+          className="gallery-card-img"
+        />
+      </div>
+
+      <div className="gallery-card-body">
+        <span className="card-theme-badge">{image.themeLabel}</span>
+        <h2 className="card-title">{image.title}</h2>
+        <p className="card-subtitle">{image.subtitle}</p>
+
+        <div className="card-stats">
+          <button
+            onClick={() => toggleLike(image.id)}
+            className="card-stat-btn"
+            type="button"
+          >
+            <Heart
+              size={18}
+              className={
+                likesMap[image.id]
+                  ? "fill-red-500 text-red-500"
+                  : "text-slate-400 dark:text-slate-500"
+              }
+            />
+            <span
+              className={
+                likesMap[image.id]
+                  ? "text-red-500"
+                  : "text-slate-500 dark:text-slate-400"
+              }
+            >
+              {likesMap[image.id] ? "Liked" : "Like"}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setDetailImage(image)}
+            className="card-comment-btn"
+            type="button"
+          >
+            <MessageCircle size={18} />
+            <span>{commentCounts[image.id] ?? 0}</span>
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            onClick={() => handleRemoveFromAlbum(image.id)}
+            className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
+            type="button"
+          >
+            <Minus size={14} />
+            Remove from album
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+};
 
 /* ------------------------------------ */
 /* Utilities */
@@ -1039,88 +1151,58 @@ function UserHomePage() {
     }
   };
 
-  const handleAlbumDragEnd = async (result) => {
-    if (!activeAlbum) return;
-    if (!result.destination) return;
-    if (searchQuery.trim()) {
-      alert("Clear search before rearranging album photos.");
-      return;
-    }
+  const sensors = useSensors(
+  useSensor(PointerSensor, {
+    activationConstraint: {
+      distance: 8,
+    },
+  }),
+);
 
-    const sourceIndex = result.source.index;
-    const destinationIndex = result.destination.index;
-
-    if (sourceIndex === destinationIndex) return;
-
-    const relations = albumPhotos
-      .filter((item) => item.albumId === activeAlbum.id)
-      .sort((a, b) => a.order - b.order);
-
-    const reordered = [...relations];
-    const [moved] = reordered.splice(sourceIndex, 1);
-    reordered.splice(destinationIndex, 0, moved);
-
-    try {
-      setAlbumSaving(true);
-
-      const batch = writeBatch(db);
-
-      reordered.forEach((item, index) => {
-        batch.update(doc(db, "albumPhotos", item.id), {
-          order: index,
-        });
-      });
-
-      batch.update(doc(db, "albums", activeAlbum.id), {
-        updatedAt: serverTimestamp(),
-      });
-
-      await batch.commit();
-    } catch (err) {
-      console.error("drag reorder failed", err);
-      alert(err?.message || "Could not reorder album photos.");
-    } finally {
-      setAlbumSaving(false);
-    }
-  };
-
-  async function handleUploadSubmit(event) {
-    event.preventDefault();
-
-    if (!uploadFile || !uploadDescription.trim() || !uploadTitle.trim()) return;
-    if (!user) {
-      alert("Please log in before uploading.");
-      return;
-    }
-
-    try {
-      setUploading(true);
-      const { url, publicId } = await uploadToCloudinary(uploadFile);
-
-      await addDoc(collection(db, "uploads"), {
-        ownerUid: user.uid,
-        ownerName: displayName,
-        title: uploadTitle.trim(),
-        subtitle: uploadDescription.trim(),
-        url,
-        publicId,
-        themeId: uploadTheme,
-        themeLabel: themeById[uploadTheme]?.label || "",
-        isShared: false,
-        createdAt: serverTimestamp(),
-      });
-
-      setUploadTitle("");
-      setUploadDescription("");
-      setUploadFile(null);
-      setShowUploadModal(false);
-    } catch (err) {
-      console.error("upload failed", err);
-      alert(err?.message || "Upload failed. Please try again.");
-    } finally {
-      setUploading(false);
-    }
+const handleAlbumDragEnd = async (event) => {
+  if (!activeAlbum) return;
+  if (searchQuery.trim()) {
+    alert("Clear search before rearranging album photos.");
+    return;
   }
+
+  const { active, over } = event;
+  if (!over || active.id === over.id) return;
+
+  const relations = albumPhotos
+    .filter((item) => item.albumId === activeAlbum.id)
+    .sort((a, b) => a.order - b.order);
+
+  const oldIndex = relations.findIndex((item) => item.photoId === active.id);
+  const newIndex = relations.findIndex((item) => item.photoId === over.id);
+
+  if (oldIndex === -1 || newIndex === -1) return;
+
+  const reordered = arrayMove(relations, oldIndex, newIndex);
+
+  try {
+    setAlbumSaving(true);
+
+    const batch = writeBatch(db);
+
+    reordered.forEach((item, index) => {
+      batch.update(doc(db, "albumPhotos", item.id), {
+        order: index,
+      });
+    });
+
+    batch.update(doc(db, "albums", activeAlbum.id), {
+      updatedAt: serverTimestamp(),
+    });
+
+    await batch.commit();
+  } catch (err) {
+    console.error("drag reorder failed", err);
+    alert(err?.message || "Could not reorder album photos.");
+  } finally {
+    setAlbumSaving(false);
+  }
+};
 
   const handleLogout = async () => {
     try {
@@ -1492,105 +1574,30 @@ function UserHomePage() {
                 </p>
               </div>
             ) : (
-              <DragDropContext onDragEnd={handleAlbumDragEnd}>
-  <Droppable droppableId="album-photos" direction="horizontal">
-    {(provided, snapshot) => (
-      <div
-        ref={provided.innerRef}
-        {...provided.droppableProps}
-        className={`mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 transition-all ${
-          snapshot.isDraggingOver
-            ? "rounded-3xl bg-slate-50/70 p-2 dark:bg-slate-800/20"
-            : ""
-        }`}
-      >
-        {filteredImages.map((image, index) => (
-          <Draggable
-            key={image.id}
-            draggableId={image.id}
-            index={index}
-            isDragDisabled={Boolean(searchQuery.trim())}
-          >
-            {(provided, snapshot) => (
-              <article
-                ref={provided.innerRef}
-                {...provided.draggableProps}
-                {...provided.dragHandleProps}
-                style={provided.draggableProps.style}
-                className={`overflow-hidden rounded-3xl bg-white ring-2 transition-transform transition-shadow duration-200 dark:bg-[#2a3655] dark:ring-slate-700 ${
-                  snapshot.isDragging
-                    ? "z-50 ring-indigo-500 shadow-2xl"
-                    : "ring-slate-200"
-                }`}
-              >
-                <div className="relative">
-                  <img
-                    src={image.url}
-                    alt={image.title}
-                    onClick={() => {
-                      if (!snapshot.isDragging) setDetailImage(image);
-                    }}
-                    className="gallery-card-img"
-                  />
-                </div>
-
-                <div className="gallery-card-body">
-                  <span className="card-theme-badge">{image.themeLabel}</span>
-                  <h2 className="card-title">{image.title}</h2>
-                  <p className="card-subtitle">{image.subtitle}</p>
-
-                  <div className="card-stats">
-                    <button
-                      onClick={() => toggleLike(image.id)}
-                      className="card-stat-btn"
-                    >
-                      <Heart
-                        size={18}
-                        className={
-                          likesMap[image.id]
-                            ? "fill-red-500 text-red-500"
-                            : "text-slate-400 dark:text-slate-500"
-                        }
-                      />
-                      <span
-                        className={
-                          likesMap[image.id]
-                            ? "text-red-500"
-                            : "text-slate-500 dark:text-slate-400"
-                        }
-                      >
-                        {likesMap[image.id] ? "Liked" : "Like"}
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => setDetailImage(image)}
-                      className="card-comment-btn"
-                    >
-                      <MessageCircle size={18} />
-                      <span>{commentCounts[image.id] ?? 0}</span>
-                    </button>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      onClick={() => handleRemoveFromAlbum(image.id)}
-                      className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
-                    >
-                      <Minus size={14} />
-                      Remove from album
-                    </button>
-                  </div>
-                </div>
-              </article>
-            )}
-          </Draggable>
-        ))}
-        {provided.placeholder}
-      </div>
-    )}
-  </Droppable>
-</DragDropContext>
+              <DndContext
+  sensors={sensors}
+  collisionDetection={closestCenter}
+  onDragEnd={handleAlbumDragEnd}
+>
+  <SortableContext
+    items={filteredImages.map((image) => image.id)}
+    strategy={rectSortingStrategy}
+  >
+    <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+      {filteredImages.map((image) => (
+        <SortableAlbumPhotoCard
+          key={image.id}
+          image={image}
+          likesMap={likesMap}
+          commentCounts={commentCounts}
+          toggleLike={toggleLike}
+          setDetailImage={setDetailImage}
+          handleRemoveFromAlbum={handleRemoveFromAlbum}
+        />
+      ))}
+    </div>
+  </SortableContext>
+</DndContext>
             )}
           </section>
         )}
