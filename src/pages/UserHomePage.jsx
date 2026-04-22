@@ -984,6 +984,46 @@ function UserHomePage() {
     setSelectedIds(new Set());
   };
 
+  const handleUploadSubmit = async (e) => {
+    e.preventDefault();
+
+    const title = uploadTitle.trim();
+    const subtitle = uploadDescription.trim();
+
+    if (!user || !uploadFile || !title || !subtitle) return;
+
+    try {
+      setUploading(true);
+
+      const { url, publicId } = await uploadToCloudinary(uploadFile);
+      const selectedTheme = themeById[uploadTheme];
+
+      await addDoc(collection(db, "uploads"), {
+        title,
+        subtitle,
+        url,
+        publicId: publicId || "",
+        themeId: uploadTheme,
+        themeLabel: selectedTheme?.label || "Custom",
+        ownerUid: user.uid,
+        ownerName: displayName,
+        isShared: false,
+        createdAt: serverTimestamp(),
+      });
+
+      setUploadTitle("");
+      setUploadDescription("");
+      setUploadFile(null);
+      setUploadTheme(themeData[0]?.id || "nature");
+      setShowUploadModal(false);
+    } catch (err) {
+      console.error("upload submit failed", err);
+      alert(err?.message || "Could not upload image.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleCreateAlbum = async (e) => {
     e.preventDefault();
     const name = newAlbumName.trim();
