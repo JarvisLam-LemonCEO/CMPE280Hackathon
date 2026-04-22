@@ -38,6 +38,7 @@ import {
   Pencil,
   Plus,
   Minus,
+  MoreVertical,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -66,6 +67,10 @@ const SortableAlbumPhotoCard = ({
   toggleLike,
   setDetailImage,
   handleRemoveFromAlbum,
+  onEditImage,
+  user,
+  openMenuId,
+  setOpenMenuId,
 }) => {
   const {
     attributes,
@@ -87,7 +92,7 @@ const SortableAlbumPhotoCard = ({
       style={style}
       {...attributes}
       {...listeners}
-      className={`overflow-hidden rounded-3xl bg-white ring-2 transition-shadow dark:bg-[#2a3655] dark:ring-slate-700 ${
+      className={`relative overflow-hidden rounded-3xl bg-white ring-2 transition-shadow dark:bg-[#2a3655] dark:ring-slate-700 ${
         isDragging
           ? "z-50 ring-indigo-500 shadow-2xl opacity-90"
           : "ring-slate-200"
@@ -154,6 +159,45 @@ const SortableAlbumPhotoCard = ({
             Remove from album
           </button>
         </div>
+
+        {isOwnedUpload(image, user) && (
+          <div className="absolute bottom-3 right-3" data-card-menu-root="true">
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenMenuId(openMenuId === image.id ? "" : image.id);
+              }}
+              data-card-menu-toggle="true"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              aria-label="More options"
+            >
+              <MoreVertical size={16} />
+            </button>
+
+            {openMenuId === image.id && (
+              <div
+                className="absolute bottom-10 right-0 z-10 min-w-[130px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800"
+                onPointerDown={(e) => e.stopPropagation()}
+                data-card-menu="true"
+              >
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditImage(image);
+                    setOpenMenuId("");
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  <Pencil size={14} />
+                  Edit Image
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </article>
   );
@@ -474,6 +518,7 @@ function UserHomePage() {
   const [uploadFile, setUploadFile] = useState(null);
 
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showEditImageModal, setShowEditImageModal] = useState(false);
   const [showCreateAlbumModal, setShowCreateAlbumModal] = useState(false);
   const [showAddToAlbumModal, setShowAddToAlbumModal] = useState(false);
 
@@ -481,7 +526,13 @@ function UserHomePage() {
   const [renameAlbumValue, setRenameAlbumValue] = useState("");
 
   const [uploading, setUploading] = useState(false);
+  const [editingImage, setEditingImage] = useState(false);
   const [albumSaving, setAlbumSaving] = useState(false);
+  const [editingImageId, setEditingImageId] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editTheme, setEditTheme] = useState(themeData[0]?.id || "nature");
+  const [openCardMenuId, setOpenCardMenuId] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isScrolled, setIsScrolled] = useState(false);
@@ -533,6 +584,25 @@ function UserHomePage() {
       JSON.stringify([...hiddenGalleryIds]),
     );
   }, [hiddenGalleryIds]);
+
+  useEffect(() => {
+    if (!openCardMenuId) return undefined;
+
+    const handlePointerDown = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const clickedMenu = target.closest("[data-card-menu='true']");
+      const clickedToggle = target.closest("[data-card-menu-toggle='true']");
+
+      if (!clickedMenu && !clickedToggle) {
+        setOpenCardMenuId("");
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [openCardMenuId]);
 
   useEffect(() => {
     if (!user) {
@@ -982,6 +1052,101 @@ function UserHomePage() {
     }
 
     setSelectedIds(new Set());
+  };
+
+  const handleUploadSubmit = async (e) => {
+    e.preventDefault();
+
+    const title = uploadTitle.trim();
+    const subtitle = uploadDescription.trim();
+
+    if (!user || !uploadFile || !title || !subtitle) return;
+
+    try {
+      setUploading(true);
+
+      const { url, publicId } = await uploadToCloudinary(uploadFile);
+      const selectedTheme = themeById[uploadTheme];
+
+      await addDoc(collection(db, "uploads"), {
+        title,
+        subtitle,
+        url,
+        publicId: publicId || "",
+        themeId: uploadTheme,
+        themeLabel: selectedTheme?.label || "Custom",
+        ownerUid: user.uid,
+        ownerName: displayName,
+        isShared: false,
+        createdAt: serverTimestamp(),
+      });
+
+      setUploadTitle("");
+      setUploadDescription("");
+      setUploadFile(null);
+      setUploadTheme(themeData[0]?.id || "nature");
+      setShowUploadModal(false);
+    } catch (err) {
+      console.error("upload submit failed", err);
+      alert(err?.message || "Could not upload image.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const openEditImageModal = (image) => {
+    if (!isOwnedUpload(image, user)) return;
+    setOpenCardMenuId("");
+    setEditingImageId(image.id);
+    setEditTitle(image.title || "");
+    setEditDescription(image.subtitle || "");
+    setEditTheme(image.themeId || themeData[0]?.id || "nature");
+    setShowEditImageModal(true);
+  };
+
+  const handleEditImageSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingImageId) return;
+
+    const title = editTitle.trim();
+    const subtitle = editDescription.trim();
+    if (!title || !subtitle) return;
+
+    const selectedTheme = themeById[editTheme];
+
+    try {
+      setEditingImage(true);
+      await updateDoc(doc(db, "uploads", editingImageId), {
+        title,
+        subtitle,
+        themeId: editTheme,
+        themeLabel: selectedTheme?.label || "Custom",
+        updatedAt: serverTimestamp(),
+      });
+
+      setDetailImage((prev) =>
+        prev?.id === editingImageId
+          ? {
+              ...prev,
+              title,
+              subtitle,
+              themeId: editTheme,
+              themeLabel: selectedTheme?.label || "Custom",
+            }
+          : prev,
+      );
+
+      setShowEditImageModal(false);
+      setEditingImageId("");
+      setEditTitle("");
+      setEditDescription("");
+      setEditTheme(themeData[0]?.id || "nature");
+    } catch (err) {
+      console.error("edit image failed", err);
+      alert(err?.message || "Could not update image.");
+    } finally {
+      setEditingImage(false);
+    }
   };
 
   const handleCreateAlbum = async (e) => {
@@ -1450,13 +1615,13 @@ const handleAlbumDragEnd = async (event) => {
                 const isSelected = selectedIds.has(image.id);
 
                 return (
-                  <article
-                    key={image.id}
-                    className={`overflow-hidden rounded-3xl bg-white ring-2 dark:bg-[#2a3655] ${
-                      isSelected
-                        ? "ring-indigo-500"
-                        : "ring-slate-200 dark:ring-slate-700"
-                    }`}
+	                  <article
+	                    key={image.id}
+	                    className={`relative overflow-hidden rounded-3xl bg-white ring-2 dark:bg-[#2a3655] ${
+	                      isSelected
+	                        ? "ring-indigo-500"
+	                        : "ring-slate-200 dark:ring-slate-700"
+	                    }`}
                   >
                     <div className="relative">
                       <img
@@ -1473,10 +1638,10 @@ const handleAlbumDragEnd = async (event) => {
                       />
                     </div>
 
-                    <div className="gallery-card-body">
-                      <span className="card-theme-badge">{image.themeLabel}</span>
-                      <h2 className="card-title">{image.title}</h2>
-                      <p className="card-subtitle">{image.subtitle}</p>
+	                    <div className="gallery-card-body">
+	                      <span className="card-theme-badge">{image.themeLabel}</span>
+	                      <h2 className="card-title">{image.title}</h2>
+	                      <p className="card-subtitle">{image.subtitle}</p>
 
                       <div className="card-stats">
                         <button
@@ -1502,18 +1667,57 @@ const handleAlbumDragEnd = async (event) => {
                           </span>
                         </button>
 
+	                        <button
+	                          onClick={() => setDetailImage(image)}
+	                          className="card-comment-btn"
+	                        >
+	                          <MessageCircle size={18} />
+	                          <span>{commentCounts[image.id] ?? 0}</span>
+	                        </button>
+	                      </div>
+
+		                    </div>
+
+                    {isOwnedUpload(image, user) && (
+                      <div className="absolute bottom-3 right-3" data-card-menu-root="true">
                         <button
-                          onClick={() => setDetailImage(image)}
-                          className="card-comment-btn"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenCardMenuId(
+                              openCardMenuId === image.id ? "" : image.id,
+                            );
+                          }}
+                          data-card-menu-toggle="true"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                          aria-label="More options"
                         >
-                          <MessageCircle size={18} />
-                          <span>{commentCounts[image.id] ?? 0}</span>
+                          <MoreVertical size={16} />
                         </button>
+
+                        {openCardMenuId === image.id && (
+                          <div
+                            className="absolute bottom-10 right-0 z-10 min-w-[130px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800"
+                            data-card-menu="true"
+                          >
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditImageModal(image);
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                            >
+                              <Pencil size={14} />
+                              Edit Image
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </article>
-                );
-              })}
+                    )}
+		                  </article>
+		                );
+	              })}
             </div>
           </section>
         ) : !activeAlbum ? (
@@ -1589,20 +1793,24 @@ const handleAlbumDragEnd = async (event) => {
           key={image.id}
           image={image}
           likesMap={likesMap}
-          commentCounts={commentCounts}
-          toggleLike={toggleLike}
-          setDetailImage={setDetailImage}
-          handleRemoveFromAlbum={handleRemoveFromAlbum}
-        />
-      ))}
-    </div>
-  </SortableContext>
+	          commentCounts={commentCounts}
+	          toggleLike={toggleLike}
+	          setDetailImage={setDetailImage}
+	          handleRemoveFromAlbum={handleRemoveFromAlbum}
+            onEditImage={openEditImageModal}
+            user={user}
+            openMenuId={openCardMenuId}
+            setOpenMenuId={setOpenCardMenuId}
+	        />
+	      ))}
+	    </div>
+	  </SortableContext>
 </DndContext>
             )}
           </section>
         )}
 
-        {showUploadModal && (
+	        {showUploadModal && (
           <div className="modal-overlay">
             <div className="w-full max-w-125 rounded-[28px] bg-white p-8 shadow-xl dark:bg-[#2a3655]">
               <h2 className="text-[24px] font-bold text-[#0f172f] dark:text-white">
@@ -1676,6 +1884,81 @@ const handleAlbumDragEnd = async (event) => {
                     className="h-12 w-1/2 rounded-2xl bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
                   >
                     {uploading ? "Uploading..." : "Upload"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+	        )}
+
+        {showEditImageModal && (
+          <div className="modal-overlay">
+            <div className="w-full max-w-125 rounded-[28px] bg-white p-8 shadow-xl dark:bg-[#2a3655]">
+              <h2 className="text-[24px] font-bold text-[#0f172f] dark:text-white">
+                Edit Image
+              </h2>
+              <p className="modal-subtitle">
+                Update title, description, and theme for this upload.
+              </p>
+
+              <form className="mt-6 space-y-4" onSubmit={handleEditImageSubmit}>
+                <div>
+                  <label className="form-label">Title</label>
+                  <input
+                    type="text"
+                    placeholder="Image title"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Description</label>
+                  <input
+                    type="text"
+                    placeholder="Short description"
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Theme</label>
+                  <select
+                    value={editTheme}
+                    onChange={(e) => setEditTheme(e.target.value)}
+                    className="form-input"
+                  >
+                    {themeData.map((theme) => (
+                      <option key={theme.id} value={theme.id}>
+                        {theme.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditImageModal(false);
+                      setEditingImageId("");
+                    }}
+                    disabled={editingImage}
+                    className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editingImage}
+                    className="h-12 w-1/2 rounded-2xl bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                  >
+                    {editingImage ? "Saving..." : "Save Changes"}
                   </button>
                 </div>
               </form>
