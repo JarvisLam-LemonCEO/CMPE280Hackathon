@@ -20,6 +20,7 @@ import { ThemeToggle } from "../ThemeContext";
 import { useAuth } from "../lib/AuthContext";
 import { db } from "../lib/firebase";
 import { uploadToCloudinary } from "../lib/cloudinary";
+import { generateStyledImage, AI_STYLES, isHFConfigured } from "../lib/huggingface";
 import {
   Image as ImageIcon,
   LogOut,
@@ -38,7 +39,7 @@ import {
   Pencil,
   Plus,
   Minus,
-  MoreVertical,
+  Sparkles,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -71,6 +72,9 @@ const SortableAlbumPhotoCard = ({
   user,
   openMenuId,
   setOpenMenuId,
+  setSelectedIds,
+  setShowAIEditModal,
+  selectedIds,
 }) => {
   const {
     attributes,
@@ -160,44 +164,29 @@ const SortableAlbumPhotoCard = ({
           </button>
         </div>
 
-        {isOwnedUpload(image, user) && (
-          <div className="absolute bottom-3 right-3" data-card-menu-root="true">
-            <button
-              type="button"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                setOpenMenuId(openMenuId === image.id ? "" : image.id);
-              }}
-              data-card-menu-toggle="true"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-              aria-label="More options"
-            >
-              <MoreVertical size={16} />
-            </button>
-
-            {openMenuId === image.id && (
-              <div
-                className="absolute bottom-10 right-0 z-10 min-w-[130px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800"
-                onPointerDown={(e) => e.stopPropagation()}
-                data-card-menu="true"
-              >
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEditImage(image);
-                    setOpenMenuId("");
-                  }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                >
-                  <Pencil size={14} />
-                  Edit Image
-                </button>
+        <div className="absolute top-3 right-3 z-10">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              const newSelected = new Set(selectedIds);
+              if (newSelected.has(image.id)) {
+                newSelected.delete(image.id);
+              } else {
+                newSelected.add(image.id);
+              }
+              setSelectedIds(newSelected);
+            }}
+            className="inline-flex h-6 w-6 items-center justify-center rounded-md border-2 border-indigo-500 bg-white transition hover:bg-indigo-50 dark:bg-slate-800"
+            aria-label="Select image"
+          >
+            {selectedIds && selectedIds.has(image.id) && (
+              <div className="h-4 w-4 bg-indigo-500 rounded-sm flex items-center justify-center">
+                <span className="text-white font-bold text-xs">✓</span>
               </div>
             )}
-          </div>
-        )}
+          </button>
+        </div>
       </div>
     </article>
   );
@@ -519,6 +508,7 @@ function UserHomePage() {
 
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showEditImageModal, setShowEditImageModal] = useState(false);
+  const [showAIEditModal, setShowAIEditModal] = useState(false);
   const [showCreateAlbumModal, setShowCreateAlbumModal] = useState(false);
   const [showAddToAlbumModal, setShowAddToAlbumModal] = useState(false);
 
@@ -545,6 +535,12 @@ function UserHomePage() {
     state: "idle",
   });
 
+  const [aiStyle, setAIStyle] = useState("wildwest");
+  const [aiPreviewUrl, setAIPreviewUrl] = useState("");
+  const [aiPreviewBlob, setAIPreviewBlob] = useState(null);
+  const [aiGenerating, setAIGenerating] = useState(false);
+  const [aiApplying, setAIApplying] = useState(false);
+
   const [hiddenGalleryIds, setHiddenGalleryIds] = useState(() => {
     try {
       const raw = localStorage.getItem("hiddenGalleryIds");
@@ -565,6 +561,29 @@ function UserHomePage() {
       })),
     );
   }, []);
+
+  const selectedEditableUploads = useMemo(
+    () => {
+      const allImages = [...uploadedImages, ...flatThemeImages];
+      return allImages.filter((image) => selectedIds.has(image.id));
+    },
+    [uploadedImages, flatThemeImages, selectedIds],
+  );
+  const selectedEditableUpload = selectedEditableUploads[0] || null;
+
+  useEffect(() => {
+    if (!showAIEditModal) return undefined;
+
+    if (!selectedEditableUpload) {
+      setShowAIEditModal(false);
+      return undefined;
+    }
+
+    setAIStyle("wildwest");
+    setAIPreviewUrl("");
+    setAIPreviewBlob(null);
+    return undefined;
+  }, [selectedEditableUpload, showAIEditModal]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -1054,6 +1073,83 @@ function UserHomePage() {
     setSelectedIds(new Set());
   };
 
+  const openAIEditModal = () => {
+    if (!selectedEditableUpload) {
+      alert("Select one of your uploaded photos first.");
+      return;
+    }
+
+    setShowAIEditModal(true);
+  };
+
+  const generateStylePreview = async () => {
+    if (!selectedEditableUpload || !aiStyle) {
+      alert("Please select an image and a style first.");
+      return;
+    }
+
+    try {
+      setAIGenerating(true);
+
+      const styledBlob = await generateStyledImage(selectedEditableUpload.url, aiStyle);
+      const styledURL = URL.createObjectURL(styledBlob);
+
+      if (aiPreviewUrl) {
+        URL.revokeObjectURL(aiPreviewUrl);
+      }
+
+      setAIPreviewBlob(styledBlob);
+      setAIPreviewUrl(styledURL);
+    } catch (err) {
+      console.error("Style generation failed:", err);
+      alert(err?.message || "Failed to generate styled image. Please try again.");
+      setAIPreviewUrl("");
+      setAIPreviewBlob(null);
+    } finally {
+      setAIGenerating(false);
+    }
+  };
+
+  const handleApplyAIEdit = async () => {
+    if (!selectedEditableUpload || !aiPreviewBlob) {
+      alert("Generate an AI preview first.");
+      return;
+    }
+
+    if (!isOwnedUpload(selectedEditableUpload, user)) {
+      alert("You can only apply AI edits to your own uploaded photos.");
+      return;
+    }
+
+    try {
+      setAIApplying(true);
+
+      const originalUrl = selectedEditableUpload.originalUrl || selectedEditableUpload.url;
+      const originalPublicId =
+        selectedEditableUpload.originalPublicId || selectedEditableUpload.publicId || "";
+      const { url, publicId } = await uploadToCloudinary(aiPreviewBlob);
+
+      await updateDoc(doc(db, "uploads", selectedEditableUpload.id), {
+        originalUrl,
+        originalPublicId,
+        url,
+        publicId: publicId || "",
+        aiStyle,
+        updatedAt: serverTimestamp(),
+      });
+
+      setShowAIEditModal(false);
+      setAIPreviewUrl("");
+      setAIPreviewBlob(null);
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error("apply ai edit failed", err);
+      alert(err?.message || "Could not apply AI edit.");
+    } finally {
+      setAIApplying(false);
+    }
+  };
+
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
 
@@ -1416,6 +1512,16 @@ const handleAlbumDragEnd = async (event) => {
                   <span>Add to album ({selectedIds.size})</span>
                 </button>
 
+                {selectedEditableUpload && isHFConfigured() && (
+                  <button
+                    onClick={openAIEditModal}
+                    className="flex items-center gap-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-4 py-2.5 text-sm font-semibold text-fuchsia-700 transition hover:bg-fuchsia-100"
+                  >
+                    <Sparkles size={16} />
+                    <span>Edit with AI</span>
+                  </button>
+                )}
+
                 <button
                   onClick={handleDeleteSelected}
                   className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100"
@@ -1679,40 +1785,28 @@ const handleAlbumDragEnd = async (event) => {
 		                    </div>
 
                     {isOwnedUpload(image, user) && (
-                      <div className="absolute bottom-3 right-3" data-card-menu-root="true">
+                      <div className="absolute top-3 right-3 z-10">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setOpenCardMenuId(
-                              openCardMenuId === image.id ? "" : image.id,
-                            );
+                            const newSelected = new Set(selectedIds);
+                            if (newSelected.has(image.id)) {
+                              newSelected.delete(image.id);
+                            } else {
+                              newSelected.add(image.id);
+                            }
+                            setSelectedIds(newSelected);
                           }}
-                          data-card-menu-toggle="true"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                          aria-label="More options"
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-md border-2 border-indigo-500 bg-white transition hover:bg-indigo-50 dark:bg-slate-800"
+                          aria-label="Select image"
                         >
-                          <MoreVertical size={16} />
+                          {selectedIds && selectedIds.has(image.id) && (
+                            <div className="h-4 w-4 bg-indigo-500 rounded-sm flex items-center justify-center">
+                              <span className="text-white font-bold text-xs">✓</span>
+                            </div>
+                          )}
                         </button>
-
-                        {openCardMenuId === image.id && (
-                          <div
-                            className="absolute bottom-10 right-0 z-10 min-w-[130px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800"
-                            data-card-menu="true"
-                          >
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditImageModal(image);
-                              }}
-                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                            >
-                              <Pencil size={14} />
-                              Edit Image
-                            </button>
-                          </div>
-                        )}
                       </div>
                     )}
 		                  </article>
@@ -1801,6 +1895,9 @@ const handleAlbumDragEnd = async (event) => {
             user={user}
             openMenuId={openCardMenuId}
             setOpenMenuId={setOpenCardMenuId}
+            setSelectedIds={setSelectedIds}
+            setShowAIEditModal={setShowAIEditModal}
+            selectedIds={selectedIds}
 	        />
 	      ))}
 	    </div>
@@ -1844,6 +1941,20 @@ const handleAlbumDragEnd = async (event) => {
                 </div>
 
                 <div>
+                  <label className="form-label">Image File</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setUploadFile(e.target.files[0] || null)}
+                    className="w-full text-sm text-slate-700"
+                    required
+                  />
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    You can apply AI styles later from the top toolbar after selecting an uploaded photo.
+                  </p>
+                </div>
+
+                <div>
                   <label className="form-label">Theme</label>
                   <select
                     value={uploadTheme}
@@ -1856,17 +1967,6 @@ const handleAlbumDragEnd = async (event) => {
                       </option>
                     ))}
                   </select>
-                </div>
-
-                <div>
-                  <label className="form-label">Image File</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setUploadFile(e.target.files[0] || null)}
-                    className="w-full text-sm text-slate-700"
-                    required
-                  />
                 </div>
 
                 <div className="flex gap-3 pt-2">
@@ -1890,6 +1990,103 @@ const handleAlbumDragEnd = async (event) => {
             </div>
           </div>
 	        )}
+
+        {showAIEditModal && selectedEditableUpload && (
+          <div className="modal-overlay">
+            <div className="w-full max-w-[920px] rounded-[32px] bg-white p-0 shadow-2xl dark:bg-[#1f2740]">
+              <div className="grid gap-0 md:grid-cols-[1.1fr_0.9fr]">
+                <div className="bg-slate-950 p-6 text-white md:p-8">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.24em] text-fuchsia-300">AI Edit</p>
+                      <h2 className="mt-2 text-[26px] font-bold">Transform selected photo</h2>
+                      <p className="mt-2 text-sm text-slate-300">
+                        Edit one uploaded photo without changing the upload flow.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAIEditModal(false)}
+                      className="rounded-full border border-white/15 p-2 text-white/80 transition hover:bg-white/10 hover:text-white"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div className="mt-6 overflow-hidden rounded-[24px] border border-white/10 bg-white/5">
+                    <img
+                      src={aiPreviewUrl || selectedEditableUpload.url}
+                      alt={selectedEditableUpload.title}
+                      className="h-[420px] w-full object-cover"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-6 md:p-8">
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                    Selected photo: {selectedEditableUpload.title}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    Choose a style, generate a preview, then apply it to replace the image.
+                  </p>
+
+                  <div className="mt-6 space-y-4">
+                    <div>
+                      <label className="form-label">Style</label>
+                      <select
+                        value={aiStyle}
+                        onChange={(e) => setAIStyle(e.target.value)}
+                        className="form-input"
+                      >
+                        {Object.entries(AI_STYLES).map(([key, style]) => (
+                          <option key={key} value={key}>
+                            {style.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={generateStylePreview}
+                      disabled={aiGenerating}
+                      className="h-12 w-full rounded-2xl bg-gradient-to-r from-fuchsia-500 to-indigo-600 text-sm font-semibold text-white shadow-md transition hover:from-fuchsia-600 hover:to-indigo-700 disabled:opacity-60"
+                    >
+                      {aiGenerating ? "Generating preview..." : "Generate preview"}
+                    </button>
+
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                      If you want to keep the original, just close this panel. No upload changes until you click apply.
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAIEditModal(false);
+                          setAIPreviewUrl("");
+                          setAIPreviewBlob(null);
+                        }}
+                        disabled={aiApplying}
+                        className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleApplyAIEdit}
+                        disabled={aiApplying || !aiPreviewBlob}
+                        className="h-12 w-1/2 rounded-2xl bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                      >
+                        {aiApplying ? "Applying..." : "Apply edit"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showEditImageModal && (
           <div className="modal-overlay">
