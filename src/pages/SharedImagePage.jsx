@@ -1,18 +1,30 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
-import { ArrowLeft, Copy, ExternalLink, Image as ImageIcon } from "lucide-react";
+import {
+  ArrowLeft,
+  Copy,
+  ExternalLink,
+  Image as ImageIcon,
+  Plus,
+} from "lucide-react";
 import { allThemeImages } from "../data/galleryData";
 import { db } from "../lib/firebase";
+import { useAuth } from "../lib/AuthContext";
+import { addSharedToGallery } from "../lib/sharing";
 
 const resolveSharedImageLink = (imageId) =>
   `${window.location.origin}/shared/${encodeURIComponent(imageId)}`;
 
 export default function SharedImagePage() {
   const { imageId = "" } = useParams();
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [image, setImage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [copyState, setCopyState] = useState("idle");
+  const [addState, setAddState] = useState("idle");
+  const [addError, setAddError] = useState("");
 
   const themeImage = useMemo(
     () => allThemeImages.find((item) => item.id === imageId) || null,
@@ -54,6 +66,47 @@ export default function SharedImagePage() {
       active = false;
     };
   }, [imageId, themeImage]);
+
+  const isThemeImage = Boolean(themeImage);
+  const isOwner = Boolean(user && image?.ownerUid && image.ownerUid === user.uid);
+  const alreadyAdded = Boolean(
+    user && Array.isArray(image?.sharedWith) && image.sharedWith.includes(user.uid),
+  );
+
+  const handleSignInToAdd = () => {
+    navigate(
+      `/auth?mode=login&next=${encodeURIComponent(`/shared/${imageId}`)}`,
+    );
+  };
+
+  const handleAddToGallery = async () => {
+    if (!user || !image?.id || isThemeImage) return;
+    setAddState("loading");
+    setAddError("");
+    try {
+      const result = await addSharedToGallery({
+        uploadId: image.id,
+        currentUid: user.uid,
+      });
+      if (!result.ok) {
+        if (result.reason === "already-added") {
+          setAddError("Already in your gallery.");
+        } else if (result.reason === "is-owner") {
+          setAddError("This is your own photo.");
+        } else {
+          setAddError("This photo is no longer available.");
+        }
+        setAddState("error");
+        return;
+      }
+      setAddState("added");
+      navigate("/user-home");
+    } catch (err) {
+      console.error("add shared to gallery failed", err);
+      setAddError("Could not add to your gallery.");
+      setAddState("error");
+    }
+  };
 
   const handleCopyLink = async () => {
     try {
@@ -159,6 +212,53 @@ export default function SharedImagePage() {
             </div>
 
             <div className="mt-8 space-y-3">
+              {!isThemeImage && !authLoading && (
+                <>
+                  {!user ? (
+                    <button
+                      onClick={handleSignInToAdd}
+                      className="btn-primary w-full"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Plus size={16} />
+                        Sign in to add
+                      </span>
+                    </button>
+                  ) : isOwner ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-3 text-center text-sm font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                      This is your photo
+                    </div>
+                  ) : alreadyAdded ? (
+                    <button
+                      disabled
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-500 dark:bg-slate-700 dark:text-slate-300"
+                    >
+                      Already in your gallery
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleAddToGallery}
+                      disabled={addState === "loading"}
+                      className="btn-primary w-full disabled:opacity-60"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Plus size={16} />
+                        {addState === "loading"
+                          ? "Adding..."
+                          : addState === "added"
+                            ? "Added!"
+                            : "Add to my photos"}
+                      </span>
+                    </button>
+                  )}
+                  {addState === "error" && addError && (
+                    <p className="text-center text-xs font-semibold text-red-500">
+                      {addError}
+                    </p>
+                  )}
+                </>
+              )}
+
               <button onClick={handleCopyLink} className="btn-primary w-full">
                 <span className="inline-flex items-center gap-2">
                   <Copy size={16} />

@@ -12,6 +12,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  Timestamp,
   where,
   writeBatch,
 } from "firebase/firestore";
@@ -21,6 +22,9 @@ import { useAuth } from "../lib/AuthContext";
 import { db } from "../lib/firebase";
 import { uploadToCloudinary } from "../lib/cloudinary";
 import { generateStyledImage, AI_STYLES, isHFConfigured } from "../lib/huggingface";
+import { removeFromMyGallery } from "../lib/sharing";
+import ShareDialog from "../components/ShareDialog";
+import VideoGeneratorModal from "../components/VideoGeneratorModal";
 import {
   Image as ImageIcon,
   LogOut,
@@ -40,6 +44,8 @@ import {
   Plus,
   Minus,
   Sparkles,
+  UserMinus,
+  Film,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -226,9 +232,6 @@ const formatCommentDate = (timestamp) => {
   });
 };
 
-const resolveShareLink = (imageId) =>
-  `${window.location.origin}/shared/${encodeURIComponent(imageId)}`;
-
 const isOwnedUpload = (image, user) =>
   Boolean(image?.ownerUid && user?.uid && image.ownerUid === user.uid);
 
@@ -246,13 +249,14 @@ const ImageWithComments = ({ imageId, currentUid, onAdd, onDelete }) => {
     const q = query(
       collection(db, "comments"),
       where("imageId", "==", imageId),
-      orderBy("createdAt", "desc"),
     );
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        setComments(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        docs.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+        setComments(docs);
       },
       (err) => {
         console.error("comments snapshot error", err);
@@ -265,8 +269,8 @@ const ImageWithComments = ({ imageId, currentUid, onAdd, onDelete }) => {
   const handleAddComment = async () => {
     const text = comment.trim();
     if (!text) return;
-    await onAdd(imageId, text);
     setComment("");
+    await onAdd(imageId, text);
   };
 
   const handleKeyDown = (e) => {
@@ -349,11 +353,8 @@ const PhotoDetailModal = ({
   currentUid,
   addComment,
   deleteComment,
-  onShare,
-  onStopSharing,
-  shareState,
-  canStopSharing,
-  isShared,
+  onOpenShare,
+  canShare,
 }) => {
   const overlayRef = useRef(null);
 
@@ -426,47 +427,18 @@ const PhotoDetailModal = ({
             </p>
           )}
 
-          <div className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-            {currentIndex + 1} / {images.length}
-          </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => onShare(image)}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#28457a] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1d3456]"
-            >
-              <Share2 size={16} />
-              <span>
-                {shareState === "copied"
-                  ? "Link copied"
-                  : shareState === "unshared"
-                    ? "Stopped sharing"
-                    : shareState === "error"
-                      ? "Copy failed"
-                      : "Copy share link"}
-              </span>
-            </button>
-
-            {isShared && (
-              <a
-                href={resolveShareLink(image.id)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                Open share page
-              </a>
-            )}
-
-            {canStopSharing && isShared && (
+          {canShare && (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               <button
-                onClick={() => onStopSharing(image)}
-                className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
+                onClick={() => onOpenShare?.(image)}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#28457a] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1d3456]"
               >
-                {shareState === "unshared" ? "Stopped sharing" : "Stop sharing"}
+                <Share2 size={16} />
+                <span>Share</span>
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="mt-4 flex flex-1 flex-col overflow-hidden border-t border-slate-100 pt-4 dark:border-slate-700">
             <p className="mb-2 shrink-0 text-sm font-semibold text-slate-600 dark:text-slate-300">
@@ -497,6 +469,9 @@ function UserHomePage() {
   const [viewMode, setViewMode] = useState("photos");
   const [activeTheme, setActiveTheme] = useState("all");
   const [uploadedImages, setUploadedImages] = useState([]);
+  const [sharedWithMeImages, setSharedWithMeImages] = useState([]);
+  const [shareDialogUpload, setShareDialogUpload] = useState(null);
+  const [toast, setToast] = useState(null);
   const [albums, setAlbums] = useState([]);
   const [albumPhotos, setAlbumPhotos] = useState([]);
   const [activeAlbumId, setActiveAlbumId] = useState(null);
@@ -511,6 +486,8 @@ function UserHomePage() {
   const [showAIEditModal, setShowAIEditModal] = useState(false);
   const [showCreateAlbumModal, setShowCreateAlbumModal] = useState(false);
   const [showAddToAlbumModal, setShowAddToAlbumModal] = useState(false);
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [videoModalAlbum, setVideoModalAlbum] = useState(null);
 
   const [newAlbumName, setNewAlbumName] = useState("");
   const [renameAlbumValue, setRenameAlbumValue] = useState("");
@@ -530,10 +507,6 @@ function UserHomePage() {
   const [detailImage, setDetailImage] = useState(null);
   const [likesMap, setLikesMap] = useState({});
   const [commentCounts, setCommentCounts] = useState({});
-  const [shareStatus, setShareStatus] = useState({
-    imageId: "",
-    state: "idle",
-  });
 
   const [aiStyle, setAIStyle] = useState("wildwest");
   const [aiPreviewUrl, setAIPreviewUrl] = useState("");
@@ -653,6 +626,7 @@ function UserHomePage() {
               ownerUid: data.ownerUid,
               ownerName: data.ownerName,
               isShared: Boolean(data.isShared),
+              sharedWith: data.sharedWith ?? [],
             };
           }),
         );
@@ -665,6 +639,58 @@ function UserHomePage() {
 
     return unsub;
   }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setSharedWithMeImages([]);
+      return undefined;
+    }
+
+    const q = query(
+      collection(db, "uploads"),
+      where("sharedWith", "array-contains", user.uid),
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setSharedWithMeImages(
+          snap.docs.map((d) => {
+            const data = d.data();
+            return {
+              id: d.id,
+              title: data.title,
+              subtitle: data.subtitle,
+              url: data.url,
+              publicId: data.publicId,
+              themeId: data.themeId,
+              themeLabel: data.themeLabel,
+              createdAt: toMillis(data.createdAt),
+              ownerUid: data.ownerUid,
+              ownerName: data.ownerName,
+              isShared: Boolean(data.isShared),
+              sharedWith: data.sharedWith ?? [],
+              isSharedWithMe: true,
+            };
+          }),
+        );
+      },
+      (err) => {
+        console.error("shared uploads snapshot error", err);
+      },
+    );
+
+    return unsub;
+  }, [user]);
+
+  // Keep the open ShareDialog in sync with live upload data.
+  useEffect(() => {
+    if (!shareDialogUpload?.id) return;
+    const next = uploadedImages.find((img) => img.id === shareDialogUpload.id);
+    if (next && next !== shareDialogUpload) {
+      setShareDialogUpload(next);
+    }
+  }, [uploadedImages, shareDialogUpload]);
 
   useEffect(() => {
     if (!user) {
@@ -790,8 +816,12 @@ function UserHomePage() {
   }, [activeAlbum]);
 
   const allPhotosMap = useMemo(() => {
+    const ownIds = new Set(uploadedImages.map((img) => img.id));
+    const sharedFiltered = sharedWithMeImages.filter(
+      (img) => !ownIds.has(img.id),
+    );
     return new Map(
-      [...uploadedImages, ...flatThemeImages].map((img) => [
+      [...uploadedImages, ...sharedFiltered, ...flatThemeImages].map((img) => [
         img.id,
         {
           ...img,
@@ -799,10 +829,15 @@ function UserHomePage() {
         },
       ]),
     );
-  }, [uploadedImages, flatThemeImages]);
+  }, [uploadedImages, sharedWithMeImages, flatThemeImages]);
 
   const imagesToRender = useMemo(() => {
-    const sortedUploads = [...uploadedImages].sort(
+    const ownIds = new Set(uploadedImages.map((img) => img.id));
+    const sharedFiltered = sharedWithMeImages.filter(
+      (img) => !ownIds.has(img.id),
+    );
+    const combined = [...uploadedImages, ...sharedFiltered];
+    const sortedUploads = combined.sort(
       (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
     );
 
@@ -845,6 +880,7 @@ function UserHomePage() {
     activeAlbum,
     albumPhotos,
     uploadedImages,
+    sharedWithMeImages,
     flatThemeImages,
     activeTheme,
     hiddenGalleryIds,
@@ -944,7 +980,7 @@ function UserHomePage() {
         authorName: profile?.displayName || user.email || "",
         authorPhotoURL: profile?.photoURL || "",
         text,
-        createdAt: serverTimestamp(),
+        createdAt: Timestamp.now(),
       });
     } catch (err) {
       console.error("addComment failed", err);
@@ -962,75 +998,29 @@ function UserHomePage() {
     }
   };
 
-  const updateLocalImageShareState = (imageId, isShared) => {
-    setUploadedImages((prev) =>
-      prev.map((item) => (item.id === imageId ? { ...item, isShared } : item)),
-    );
-    setDetailImage((prev) =>
-      prev?.id === imageId ? { ...prev, isShared } : prev,
-    );
-  };
-
-  const updateSharedUpload = async (image) => {
-    if (!image?.id || !isOwnedUpload(image, user)) return;
-
-    try {
-      const uploadRef = doc(db, "uploads", image.id);
-      const uploadSnap = await getDoc(uploadRef);
-      if (uploadSnap.exists() && !uploadSnap.data()?.isShared) {
-        updateLocalImageShareState(image.id, true);
-        await updateDoc(uploadRef, {
-          isShared: true,
-          sharedAt: serverTimestamp(),
-        });
-      }
-    } catch (err) {
-      console.error("mark shared upload failed", err);
-    }
-  };
-
-  const stopSharingUpload = async (image) => {
-    if (!image?.id || !isOwnedUpload(image, user)) return;
-
-    try {
-      updateLocalImageShareState(image.id, false);
-      await updateDoc(doc(db, "uploads", image.id), {
-        isShared: false,
-      });
-      setShareStatus({ imageId: image.id, state: "unshared" });
-      window.setTimeout(() => {
-        setShareStatus((current) =>
-          current.imageId === image.id ? { imageId: "", state: "idle" } : current,
-        );
-      }, 2000);
-    } catch (err) {
-      console.error("stop sharing upload failed", err);
-      updateLocalImageShareState(image.id, true);
-      setShareStatus({ imageId: image.id, state: "error" });
-    }
-  };
-
-  const handleShareImage = async (image) => {
-    if (!image?.id) return;
-
-    const shareLink = resolveShareLink(image.id);
-    setShareStatus({ imageId: image.id, state: "idle" });
-
-    await updateSharedUpload(image);
-
-    try {
-      await navigator.clipboard.writeText(shareLink);
-      setShareStatus({ imageId: image.id, state: "copied" });
-    } catch (err) {
-      console.error("share image failed", err);
-      setShareStatus({ imageId: image.id, state: "error" });
-    }
-
+  const showToast = (message, kind = "info") => {
+    setToast({ message, kind });
     window.setTimeout(() => {
-      setShareStatus((current) =>
-        current.imageId === image.id ? { imageId: "", state: "idle" } : current,
+      setToast((current) =>
+        current && current.message === message ? null : current,
       );
-    }, 2000);
+    }, 3000);
+  };
+
+  const handleRemoveFromMyGallery = async (image) => {
+    if (!user || !image?.id) return;
+    const confirmed = window.confirm(
+      "Remove from your gallery? Owner can re-share later.",
+    );
+    if (!confirmed) return;
+
+    try {
+      await removeFromMyGallery({ uploadId: image.id, currentUid: user.uid });
+      showToast("Removed from your gallery.", "success");
+    } catch (err) {
+      console.error("remove from my gallery failed", err);
+      showToast("Could not remove from gallery.", "error");
+    }
   };
 
   const toggleSelect = (id) => {
@@ -1174,6 +1164,7 @@ function UserHomePage() {
         ownerUid: user.uid,
         ownerName: displayName,
         isShared: false,
+        sharedWith: [],
         createdAt: serverTimestamp(),
       });
 
@@ -1506,7 +1497,7 @@ const handleAlbumDragEnd = async (event) => {
               <>
                 <button
                   onClick={() => setShowAddToAlbumModal(true)}
-                  className="flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                  className="flex items-center gap-2 rounded-xl bg-[#28457a] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d3456]"
                 >
                   <Plus size={16} />
                   <span>Add to album ({selectedIds.size})</span>
@@ -1515,7 +1506,7 @@ const handleAlbumDragEnd = async (event) => {
                 {selectedEditableUpload && isHFConfigured() && (
                   <button
                     onClick={openAIEditModal}
-                    className="flex items-center gap-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-4 py-2.5 text-sm font-semibold text-fuchsia-700 transition hover:bg-fuchsia-100"
+                    className="flex items-center gap-2 rounded-xl bg-fuchsia-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-fuchsia-600"
                   >
                     <Sparkles size={16} />
                     <span>Edit with AI</span>
@@ -1524,7 +1515,7 @@ const handleAlbumDragEnd = async (event) => {
 
                 <button
                   onClick={handleDeleteSelected}
-                  className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+                  className="flex items-center gap-2 rounded-xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-600"
                 >
                   <Trash2 size={16} />
                   <span>Delete ({selectedIds.size})</span>
@@ -1709,6 +1700,19 @@ const handleAlbumDragEnd = async (event) => {
                   <Trash2 size={16} />
                   Delete Album
                 </button>
+
+                {imagesToRender.filter((img) => img && img.publicId).length >= 2 && (
+                  <button
+                    onClick={() => {
+                      setVideoModalAlbum(activeAlbum);
+                      setVideoModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-900/60 dark:bg-indigo-900/20 dark:text-indigo-200 dark:hover:bg-indigo-900/30"
+                  >
+                    <Film size={16} />
+                    Generate Video
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1719,6 +1723,9 @@ const handleAlbumDragEnd = async (event) => {
             <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {filteredImages.map((image) => {
                 const isSelected = selectedIds.has(image.id);
+                const owned = isOwnedUpload(image, user);
+                const isSharedItem = Boolean(image.isSharedWithMe) ||
+                  (image.ownerUid && user?.uid && image.ownerUid !== user.uid);
 
                 return (
 	                  <article
@@ -1736,18 +1743,25 @@ const handleAlbumDragEnd = async (event) => {
                         onClick={() => setDetailImage(image)}
                         className="gallery-card-img"
                       />
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(image.id)}
-                        className="absolute right-3 top-3 h-5 w-5 cursor-pointer accent-indigo-600"
-                      />
+                      {owned && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(image.id)}
+                          className="absolute right-3 top-3 h-5 w-5 cursor-pointer accent-indigo-600"
+                        />
+                      )}
                     </div>
 
 	                    <div className="gallery-card-body">
 	                      <span className="card-theme-badge">{image.themeLabel}</span>
 	                      <h2 className="card-title">{image.title}</h2>
 	                      <p className="card-subtitle">{image.subtitle}</p>
+                      {isSharedItem && image.ownerName && (
+                        <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                          Shared by {image.ownerName}
+                        </p>
+                      )}
 
                       <div className="card-stats">
                         <button
@@ -1782,33 +1796,47 @@ const handleAlbumDragEnd = async (event) => {
 	                        </button>
 	                      </div>
 
+                      {isSharedItem && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveFromMyGallery(image);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
+                          >
+                            <UserMinus size={14} />
+                            Remove from my gallery
+                          </button>
+                        </div>
+                      )}
+
 		                    </div>
 
-                    {isOwnedUpload(image, user) && (
-                      <div className="absolute top-3 right-3 z-10">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const newSelected = new Set(selectedIds);
-                            if (newSelected.has(image.id)) {
-                              newSelected.delete(image.id);
-                            } else {
-                              newSelected.add(image.id);
-                            }
-                            setSelectedIds(newSelected);
-                          }}
-                          className="inline-flex h-6 w-6 items-center justify-center rounded-md border-2 border-indigo-500 bg-white transition hover:bg-indigo-50 dark:bg-slate-800"
-                          aria-label="Select image"
-                        >
-                          {selectedIds && selectedIds.has(image.id) && (
-                            <div className="h-4 w-4 bg-indigo-500 rounded-sm flex items-center justify-center">
-                              <span className="text-white font-bold text-xs">✓</span>
-                            </div>
-                          )}
-                        </button>
-                      </div>
-                    )}
+                    <div className="absolute top-3 right-3 z-10">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newSelected = new Set(selectedIds);
+                          if (newSelected.has(image.id)) {
+                            newSelected.delete(image.id);
+                          } else {
+                            newSelected.add(image.id);
+                          }
+                          setSelectedIds(newSelected);
+                        }}
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border-2 border-indigo-500 bg-white transition hover:bg-indigo-50 dark:bg-slate-800"
+                        aria-label="Select image"
+                      >
+                        {selectedIds && selectedIds.has(image.id) && (
+                          <div className="h-4 w-4 bg-indigo-500 rounded-sm flex items-center justify-center">
+                            <span className="text-white font-bold text-xs">✓</span>
+                          </div>
+                        )}
+                      </button>
+                    </div>
 		                  </article>
 		                );
 	              })}
@@ -2263,6 +2291,22 @@ const handleAlbumDragEnd = async (event) => {
             </div>
           </div>
         )}
+
+        {toast && (
+          <div className="pointer-events-none fixed bottom-6 left-1/2 z-100 -translate-x-1/2">
+            <div
+              className={`pointer-events-auto rounded-2xl px-5 py-3 text-sm font-semibold shadow-lg ${
+                toast.kind === "error"
+                  ? "bg-red-600 text-white"
+                  : toast.kind === "success"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-slate-800 text-white"
+              }`}
+            >
+              {toast.message}
+            </div>
+          </div>
+        )}
       </main>
 
       {detailImage && (
@@ -2280,15 +2324,35 @@ const handleAlbumDragEnd = async (event) => {
           currentUid={user.uid}
           addComment={addComment}
           deleteComment={deleteComment}
-          onShare={handleShareImage}
-          onStopSharing={stopSharingUpload}
-          shareState={
-            shareStatus.imageId === detailImage.id ? shareStatus.state : "idle"
-          }
-          canStopSharing={isOwnedUpload(detailImage, user)}
-          isShared={Boolean(detailImage.isShared)}
+          onOpenShare={(image) => setShareDialogUpload(image)}
+          canShare={isOwnedUpload(detailImage, user)}
         />
       )}
+
+      <ShareDialog
+        open={!!shareDialogUpload}
+        upload={shareDialogUpload}
+        onClose={() => setShareDialogUpload(null)}
+        currentUser={user}
+        currentProfile={profile}
+      />
+
+      <VideoGeneratorModal
+        open={videoModalOpen && !!videoModalAlbum}
+        onClose={() => setVideoModalOpen(false)}
+        album={videoModalAlbum}
+        albumPhotos={
+          videoModalAlbum
+            ? albumPhotos
+                .filter((rel) => rel.albumId === videoModalAlbum.id)
+                .sort((a, b) => a.order - b.order)
+                .map((rel) => allPhotosMap.get(rel.photoId))
+                .filter(Boolean)
+            : []
+        }
+        ownerUid={user?.uid}
+        ownerName={profile?.displayName || user?.email || ""}
+      />
     </>
   );
 }
