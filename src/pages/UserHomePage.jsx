@@ -501,6 +501,7 @@ function UserHomePage() {
   const [showInviteEventModal, setShowInviteEventModal] = useState(false);
   const [showEventUploadModal, setShowEventUploadModal] = useState(false);
   const [showEditEventPhotoModal, setShowEditEventPhotoModal] = useState(false);
+  const [showEditEventModal, setShowEditEventModal] = useState(false);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [videoModalAlbum, setVideoModalAlbum] = useState(null);
 
@@ -508,6 +509,8 @@ function UserHomePage() {
   const [renameAlbumValue, setRenameAlbumValue] = useState("");
   const [newEventName, setNewEventName] = useState("");
   const [newEventDescription, setNewEventDescription] = useState("");
+  const [editEventName, setEditEventName] = useState("");
+  const [editEventDescription, setEditEventDescription] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
 
   const [uploading, setUploading] = useState(false);
@@ -1042,6 +1045,16 @@ function UserHomePage() {
       setRenameAlbumValue("");
     }
   }, [activeAlbum]);
+
+  useEffect(() => {
+    if (activeEvent) {
+      setEditEventName(activeEvent.name || "");
+      setEditEventDescription(activeEvent.description || "");
+    } else {
+      setEditEventName("");
+      setEditEventDescription("");
+    }
+  }, [activeEvent]);
 
   const allPhotosMap = useMemo(() => {
     const ownIds = new Set(uploadedImages.map((img) => img.id));
@@ -1604,6 +1617,39 @@ function UserHomePage() {
     } catch (err) {
       console.error("delete event failed", err);
       alert(err?.message || "Could not delete event vault.");
+    } finally {
+      setEventSaving(false);
+    }
+  };
+
+  const openEditEventModal = () => {
+    if (!activeEvent || !isActiveEventOwner) return;
+    setEditEventName(activeEvent.name || "");
+    setEditEventDescription(activeEvent.description || "");
+    setShowEditEventModal(true);
+  };
+
+  const handleEditEventSubmit = async (e) => {
+    e.preventDefault();
+    if (!activeEvent || !isActiveEventOwner) return;
+
+    const name = editEventName.trim();
+    const description = editEventDescription.trim();
+    if (!name) return;
+
+    try {
+      setEventSaving(true);
+      await updateDoc(doc(db, "events", activeEvent.id), {
+        name,
+        description,
+        updatedAt: serverTimestamp(),
+      });
+
+      setShowEditEventModal(false);
+      showToast("Event info updated.", "success");
+    } catch (err) {
+      console.error("edit event failed", err);
+      alert(err?.message || "Could not update event info.");
     } finally {
       setEventSaving(false);
     }
@@ -2191,18 +2237,37 @@ const handleAlbumDragEnd = async (event) => {
       <main className="min-h-screen bg-[#f6f7fb] px-6 pb-8 text-slate-900 dark:bg-[#1a2035] dark:text-white sm:px-10 lg:px-16">
         <div className="page-container pt-28 pb-0">
           <div className="section-card">
-            <p className="page-label">User dashboard</p>
-            <h1 className="page-title">
-              {viewMode === "events"
-                ? activeEvent
-                  ? activeEvent.name
-                  : "Event Vaults"
-                : viewMode === "albums"
-                ? activeAlbum
-                  ? activeAlbum.name
-                  : "Albums"
-                : "Themed Image Gallery"}
-            </h1>
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="page-label">User dashboard</p>
+                <h1 className="page-title">
+                  {viewMode === "events"
+                    ? activeEvent
+                      ? activeEvent.name
+                      : "Event Vaults"
+                    : viewMode === "albums"
+                    ? activeAlbum
+                      ? activeAlbum.name
+                      : "Albums"
+                    : "Themed Image Gallery"}
+                </h1>
+              </div>
+
+              {viewMode === "events" && activeEvent && isActiveEventOwner && (
+                <button
+                  type="button"
+                  onClick={openEditEventModal}
+                  disabled={eventSaving}
+                  className="group relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-900/60 dark:bg-emerald-900/20 dark:text-emerald-200 dark:hover:bg-emerald-900/30"
+                  aria-label="Edit event"
+                >
+                  <Pencil size={17} />
+                  <span className="pointer-events-none absolute bottom-full right-0 mb-2 hidden whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white shadow-lg group-hover:block group-focus:block">
+                    Edit event
+                  </span>
+                </button>
+              )}
+            </div>
 
             <p className="mt-2 max-w-190 text-[17px] text-[#64748b] dark:text-slate-400">
               {viewMode === "events"
@@ -2861,7 +2926,6 @@ const handleAlbumDragEnd = async (event) => {
                       </div>
 
                       <div className="gallery-card-body">
-                        <span className="card-theme-badge">{activeEvent.name}</span>
                         <h2 className="card-title">{image.title}</h2>
                         <p className="card-subtitle">{image.subtitle}</p>
                         {image.ownerName && (
@@ -3190,6 +3254,66 @@ const handleAlbumDragEnd = async (event) => {
                     className="h-12 w-1/2 rounded-2xl bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
                   >
                     {editingImage ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showEditEventModal && activeEvent && (
+          <div className="modal-overlay">
+            <div className="w-full max-w-[560px] rounded-[28px] bg-white p-8 shadow-xl dark:bg-[#2a3655]">
+              <h2 className="text-[24px] font-bold text-[#0f172f] dark:text-white">
+                Edit Event
+              </h2>
+              <p className="modal-subtitle">
+                Update the name and description shown to event members.
+              </p>
+
+              <form className="mt-6 space-y-4" onSubmit={handleEditEventSubmit}>
+                <div>
+                  <label className="form-label">Event Name</label>
+                  <input
+                    type="text"
+                    value={editEventName}
+                    onChange={(e) => setEditEventName(e.target.value)}
+                    placeholder="CMPE 280 Hackathon"
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Description</label>
+                  <input
+                    type="text"
+                    value={editEventDescription}
+                    onChange={(e) => setEditEventDescription(e.target.value)}
+                    placeholder="Team photos, demos, and final presentation moments"
+                    className="form-input"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditEventModal(false);
+                      setEditEventName(activeEvent.name || "");
+                      setEditEventDescription(activeEvent.description || "");
+                    }}
+                    disabled={eventSaving}
+                    className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={eventSaving || !editEventName.trim()}
+                    className="h-12 w-1/2 rounded-2xl bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {eventSaving ? "Saving..." : "Save Changes"}
                   </button>
                 </div>
               </form>
