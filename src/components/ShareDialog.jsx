@@ -55,7 +55,6 @@ export default function ShareDialog({
   onClose,
   upload,
   currentUser,
-  currentProfile,
 }) {
   const overlayRef = useRef(null);
   const inputRef = useRef(null);
@@ -137,7 +136,7 @@ export default function ShareDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, upload?.id, sharedWithKey]);
+  }, [open, upload, sharedWithKey]);
 
   const ownerRow = useMemo(() => {
     if (!upload) return null;

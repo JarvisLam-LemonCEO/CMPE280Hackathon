@@ -7,6 +7,9 @@ import {
   doc,
   updateDoc,
   getDoc,
+  getDocs,
+  arrayUnion,
+  increment,
   onSnapshot,
   orderBy,
   query,
@@ -22,7 +25,7 @@ import { useAuth } from "../lib/AuthContext";
 import { db } from "../lib/firebase";
 import { uploadToCloudinary } from "../lib/cloudinary";
 import { generateStyledImage, AI_STYLES, isHFConfigured } from "../lib/huggingface";
-import { removeFromMyGallery } from "../lib/sharing";
+import { findUidByEmail, getUsersByUids, removeFromMyGallery } from "../lib/sharing";
 import ShareDialog from "../components/ShareDialog";
 import VideoGeneratorModal from "../components/VideoGeneratorModal";
 import {
@@ -46,6 +49,9 @@ import {
   Sparkles,
   UserMinus,
   Film,
+  CalendarDays,
+  Users,
+  Trophy,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -74,12 +80,7 @@ const SortableAlbumPhotoCard = ({
   toggleLike,
   setDetailImage,
   handleRemoveFromAlbum,
-  onEditImage,
-  user,
-  openMenuId,
-  setOpenMenuId,
   setSelectedIds,
-  setShowAIEditModal,
   selectedIds,
 }) => {
   const {
@@ -234,6 +235,8 @@ const formatCommentDate = (timestamp) => {
 
 const isOwnedUpload = (image, user) =>
   Boolean(image?.ownerUid && user?.uid && image.ownerUid === user.uid);
+
+const eventInviteId = (eventId, uid) => `${eventId}_${uid}`;
 
 /* ------------------------------------ */
 /* Comment Component */
@@ -475,27 +478,49 @@ function UserHomePage() {
   const [albums, setAlbums] = useState([]);
   const [albumPhotos, setAlbumPhotos] = useState([]);
   const [activeAlbumId, setActiveAlbumId] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [eventPhotos, setEventPhotos] = useState([]);
+  const [eventInvites, setEventInvites] = useState([]);
+  const [eventMembers, setEventMembers] = useState([]);
+  const [activeEventId, setActiveEventId] = useState(null);
 
   const [uploadTheme, setUploadTheme] = useState(themeData[0]?.id || "nature");
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploadDescription, setUploadDescription] = useState("");
   const [uploadFile, setUploadFile] = useState(null);
+  const [eventUploadTitle, setEventUploadTitle] = useState("");
+  const [eventUploadDescription, setEventUploadDescription] = useState("");
+  const [eventUploadFile, setEventUploadFile] = useState(null);
 
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showEditImageModal, setShowEditImageModal] = useState(false);
   const [showAIEditModal, setShowAIEditModal] = useState(false);
   const [showCreateAlbumModal, setShowCreateAlbumModal] = useState(false);
   const [showAddToAlbumModal, setShowAddToAlbumModal] = useState(false);
+  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
+  const [showInviteEventModal, setShowInviteEventModal] = useState(false);
+  const [showEventUploadModal, setShowEventUploadModal] = useState(false);
+  const [showEditEventPhotoModal, setShowEditEventPhotoModal] = useState(false);
+  const [showEditEventModal, setShowEditEventModal] = useState(false);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [videoModalAlbum, setVideoModalAlbum] = useState(null);
 
   const [newAlbumName, setNewAlbumName] = useState("");
   const [renameAlbumValue, setRenameAlbumValue] = useState("");
+  const [newEventName, setNewEventName] = useState("");
+  const [newEventDescription, setNewEventDescription] = useState("");
+  const [editEventName, setEditEventName] = useState("");
+  const [editEventDescription, setEditEventDescription] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
 
   const [uploading, setUploading] = useState(false);
   const [editingImage, setEditingImage] = useState(false);
   const [albumSaving, setAlbumSaving] = useState(false);
+  const [eventSaving, setEventSaving] = useState(false);
+  const [eventUploading, setEventUploading] = useState(false);
+  const [eventPhotoEditing, setEventPhotoEditing] = useState(false);
   const [editingImageId, setEditingImageId] = useState("");
+  const [editingEventPhotoId, setEditingEventPhotoId] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editTheme, setEditTheme] = useState(themeData[0]?.id || "nature");
@@ -506,6 +531,7 @@ function UserHomePage() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [detailImage, setDetailImage] = useState(null);
   const [likesMap, setLikesMap] = useState({});
+  const [eventVotes, setEventVotes] = useState({});
   const [commentCounts, setCommentCounts] = useState({});
 
   const [aiStyle, setAIStyle] = useState("wildwest");
@@ -778,6 +804,172 @@ function UserHomePage() {
 
   useEffect(() => {
     if (!user) {
+      setEvents([]);
+      return undefined;
+    }
+
+    const q = query(
+      collection(db, "events"),
+      where("memberUids", "array-contains", user.uid),
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const next = snap.docs
+          .map((d) => {
+            const data = d.data();
+            return {
+              id: d.id,
+              name: data.name || "Untitled event",
+              description: data.description || "",
+              ownerUid: data.ownerUid,
+              ownerName: data.ownerName,
+              memberUids: data.memberUids || [],
+              coverPhotoUrl: data.coverPhotoUrl || "",
+              photoCount: data.photoCount || 0,
+              createdAt: toMillis(data.createdAt),
+              updatedAt: toMillis(data.updatedAt),
+            };
+          })
+          .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+        setEvents(next);
+        if (activeEventId && !next.some((event) => event.id === activeEventId)) {
+          setActiveEventId(null);
+        }
+      },
+      (err) => {
+        console.error("events snapshot error", err);
+        alert(err?.message || "Event vaults failed to load.");
+      },
+    );
+
+    return unsub;
+  }, [user, activeEventId]);
+
+  useEffect(() => {
+    if (!user) {
+      setEventInvites([]);
+      return undefined;
+    }
+
+    const q = query(
+      collection(db, "eventInvites"),
+      where("recipientUid", "==", user.uid),
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const next = snap.docs
+          .map((d) => {
+            const data = d.data();
+            return {
+              id: d.id,
+              eventId: data.eventId,
+              eventName: data.eventName || "Untitled event",
+              eventDescription: data.eventDescription || "",
+              ownerUid: data.ownerUid,
+              ownerName: data.ownerName || "",
+              recipientUid: data.recipientUid,
+              recipientEmail: data.recipientEmail || "",
+              status: data.status || "pending",
+              createdAt: toMillis(data.createdAt),
+            };
+          })
+          .filter((invite) => invite.status === "pending")
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        setEventInvites(next);
+      },
+      (err) => {
+        console.error("event invites snapshot error", err);
+      },
+    );
+
+    return unsub;
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !activeEventId) {
+      setEventPhotos([]);
+      return undefined;
+    }
+
+    const q = query(
+      collection(db, "eventPhotos"),
+      where("eventId", "==", activeEventId),
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setEventPhotos(
+          snap.docs.map((d) => {
+            const data = d.data();
+            return {
+              id: d.id,
+              eventId: data.eventId,
+              title: data.title,
+              subtitle: data.subtitle,
+              url: data.url,
+              publicId: data.publicId,
+              themeId: "event",
+              themeLabel: "Event",
+              ownerUid: data.ownerUid,
+              ownerName: data.ownerName,
+              createdAt: toMillis(data.createdAt),
+              isEventPhoto: true,
+            };
+          }),
+        );
+      },
+      (err) => {
+        console.error("event photos snapshot error", err);
+        alert(err?.message || "Event photos failed to load.");
+      },
+    );
+
+    return unsub;
+  }, [user, activeEventId]);
+
+  useEffect(() => {
+    if (!user || !activeEventId) {
+      setEventVotes({});
+      return undefined;
+    }
+
+    const q = query(
+      collection(db, "eventVotes"),
+      where("eventId", "==", activeEventId),
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const next = {};
+        snap.docs.forEach((d) => {
+          const data = d.data();
+          if (!data?.photoId) return;
+          const current = next[data.photoId] || { count: 0, voted: false };
+          next[data.photoId] = {
+            count: current.count + 1,
+            voted: current.voted || data.uid === user.uid,
+          };
+        });
+        setEventVotes(next);
+      },
+      (err) => {
+        console.error("event votes snapshot error", err);
+      },
+    );
+
+    return unsub;
+  }, [user, activeEventId]);
+
+  useEffect(() => {
+    if (!user) {
       setLikesMap({});
       return undefined;
     }
@@ -806,6 +998,45 @@ function UserHomePage() {
     () => albums.find((album) => album.id === activeAlbumId) || null,
     [albums, activeAlbumId],
   );
+  const activeEvent = useMemo(
+    () => events.find((event) => event.id === activeEventId) || null,
+    [events, activeEventId],
+  );
+  const isActiveEventOwner = Boolean(
+    activeEvent?.ownerUid && user?.uid && activeEvent.ownerUid === user.uid,
+  );
+  const activeEventMemberUids = useMemo(
+    () => activeEvent?.memberUids || [],
+    [activeEvent?.memberUids],
+  );
+
+  useEffect(() => {
+    if (!activeEventMemberUids.length) {
+      setEventMembers([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    getUsersByUids(activeEventMemberUids)
+      .then((docs) => {
+        if (cancelled) return;
+        const byUid = new Map(docs.map((member) => [member.uid, member]));
+        setEventMembers(
+          activeEventMemberUids.map((uid) => ({
+            uid,
+            ...(byUid.get(uid) || {}),
+          })),
+        );
+      })
+      .catch((err) => {
+        console.error("event members load failed", err);
+        if (!cancelled) setEventMembers([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeEventMemberUids]);
 
   useEffect(() => {
     if (activeAlbum) {
@@ -814,6 +1045,16 @@ function UserHomePage() {
       setRenameAlbumValue("");
     }
   }, [activeAlbum]);
+
+  useEffect(() => {
+    if (activeEvent) {
+      setEditEventName(activeEvent.name || "");
+      setEditEventDescription(activeEvent.description || "");
+    } else {
+      setEditEventName("");
+      setEditEventDescription("");
+    }
+  }, [activeEvent]);
 
   const allPhotosMap = useMemo(() => {
     const ownIds = new Set(uploadedImages.map((img) => img.id));
@@ -851,6 +1092,12 @@ function UserHomePage() {
         .filter(Boolean);
     }
 
+    if (viewMode === "events" && activeEvent) {
+      return [...eventPhotos].sort(
+        (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
+      );
+    }
+
     if (activeTheme === "all") {
       const galleryImages = flatThemeImages.filter(
         (img) => !hiddenGalleryIds.has(img.id),
@@ -879,12 +1126,14 @@ function UserHomePage() {
     viewMode,
     activeAlbum,
     albumPhotos,
+    eventPhotos,
     uploadedImages,
     sharedWithMeImages,
     flatThemeImages,
     activeTheme,
     hiddenGalleryIds,
     allPhotosMap,
+    activeEvent,
   ]);
 
   const filteredImages = useMemo(() => {
@@ -1316,6 +1565,420 @@ function UserHomePage() {
     }
   };
 
+  const handleDeleteEvent = async () => {
+    if (!activeEvent || !isActiveEventOwner) return;
+
+    const confirmed = window.confirm(
+      `Delete event vault "${activeEvent.name}"? This removes the event, its contributed photos, and all votes.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setEventSaving(true);
+
+      const votesSnap = await getDocs(
+        query(
+          collection(db, "eventVotes"),
+          where("eventId", "==", activeEvent.id),
+        ),
+      );
+      const invitesSnap = await getDocs(
+        query(
+          collection(db, "eventInvites"),
+          where("eventId", "==", activeEvent.id),
+        ),
+      );
+
+      const batch = writeBatch(db);
+
+      eventPhotos
+        .filter((photo) => photo.eventId === activeEvent.id)
+        .forEach((photo) => {
+          batch.delete(doc(db, "eventPhotos", photo.id));
+        });
+
+      votesSnap.forEach((voteDoc) => {
+        batch.delete(doc(db, "eventVotes", voteDoc.id));
+      });
+
+      invitesSnap.forEach((inviteDoc) => {
+        batch.delete(doc(db, "eventInvites", inviteDoc.id));
+      });
+
+      batch.delete(doc(db, "events", activeEvent.id));
+
+      await batch.commit();
+
+      setActiveEventId(null);
+      setEventPhotos([]);
+      setEventVotes({});
+      setViewMode("events");
+      showToast("Event vault deleted.", "success");
+    } catch (err) {
+      console.error("delete event failed", err);
+      alert(err?.message || "Could not delete event vault.");
+    } finally {
+      setEventSaving(false);
+    }
+  };
+
+  const openEditEventModal = () => {
+    if (!activeEvent || !isActiveEventOwner) return;
+    setEditEventName(activeEvent.name || "");
+    setEditEventDescription(activeEvent.description || "");
+    setShowEditEventModal(true);
+  };
+
+  const handleEditEventSubmit = async (e) => {
+    e.preventDefault();
+    if (!activeEvent || !isActiveEventOwner) return;
+
+    const name = editEventName.trim();
+    const description = editEventDescription.trim();
+    if (!name) return;
+
+    try {
+      setEventSaving(true);
+      await updateDoc(doc(db, "events", activeEvent.id), {
+        name,
+        description,
+        updatedAt: serverTimestamp(),
+      });
+
+      setShowEditEventModal(false);
+      showToast("Event info updated.", "success");
+    } catch (err) {
+      console.error("edit event failed", err);
+      alert(err?.message || "Could not update event info.");
+    } finally {
+      setEventSaving(false);
+    }
+  };
+
+  const handleCreateEvent = async (e) => {
+    e.preventDefault();
+    const name = newEventName.trim();
+    const description = newEventDescription.trim();
+    if (!name || !user) return;
+
+    try {
+      setEventSaving(true);
+      const ref = await addDoc(collection(db, "events"), {
+        ownerUid: user.uid,
+        ownerName: displayName,
+        memberUids: [user.uid],
+        name,
+        description,
+        coverPhotoUrl: "",
+        photoCount: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      setNewEventName("");
+      setNewEventDescription("");
+      setShowCreateEventModal(false);
+      setViewMode("events");
+      setActiveAlbumId(null);
+      setActiveEventId(ref.id);
+      showToast("Event vault created.", "success");
+    } catch (err) {
+      console.error("create event failed", err);
+      alert(err?.message || "Could not create event vault.");
+    } finally {
+      setEventSaving(false);
+    }
+  };
+
+  const handleInviteToEvent = async (e) => {
+    e.preventDefault();
+    const email = inviteEmail.trim();
+    if (!activeEvent || !email || !isActiveEventOwner) return;
+
+    try {
+      setEventSaving(true);
+      const recipientUid = await findUidByEmail(email);
+      if (!recipientUid) {
+        alert("No user found with that email.");
+        return;
+      }
+      if (recipientUid === user.uid) {
+        alert("You are already in this event vault.");
+        return;
+      }
+      if (activeEvent.memberUids?.includes(recipientUid)) {
+        alert("That user is already a member.");
+        return;
+      }
+
+      const inviteRef = doc(
+        db,
+        "eventInvites",
+        eventInviteId(activeEvent.id, recipientUid),
+      );
+      const inviteSnap = await getDoc(inviteRef);
+      const existingStatus = inviteSnap.exists() ? inviteSnap.data()?.status : "";
+
+      if (existingStatus === "pending") {
+        alert("That user already has a pending invitation.");
+        return;
+      }
+      if (existingStatus === "accepted") {
+        alert("That user already accepted this invitation.");
+        return;
+      }
+
+      await setDoc(inviteRef, {
+        eventId: activeEvent.id,
+        eventName: activeEvent.name,
+        eventDescription: activeEvent.description || "",
+        ownerUid: user.uid,
+        ownerName: displayName,
+        recipientUid,
+        recipientEmail: email.toLowerCase(),
+        status: "pending",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      setInviteEmail("");
+      setShowInviteEventModal(false);
+      showToast("Invitation sent.", "success");
+    } catch (err) {
+      console.error("invite to event failed", err);
+      alert(err?.message || "Could not invite user.");
+    } finally {
+      setEventSaving(false);
+    }
+  };
+
+  const handleRespondToEventInvite = async (invite, response) => {
+    if (!user || !invite?.id || !invite.eventId) return;
+    const isAccept = response === "accepted";
+
+    try {
+      setEventSaving(true);
+
+      const inviteRef = doc(db, "eventInvites", invite.id);
+
+      if (isAccept) {
+        const eventRef = doc(db, "events", invite.eventId);
+        await updateDoc(eventRef, {
+          memberUids: arrayUnion(user.uid),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      await updateDoc(inviteRef, {
+        status: isAccept ? "accepted" : "rejected",
+        respondedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      showToast(
+        isAccept ? "Event invitation accepted." : "Event invitation rejected.",
+        "success",
+      );
+      if (isAccept) {
+        setViewMode("events");
+        setActiveAlbumId(null);
+        setActiveEventId(invite.eventId);
+      }
+    } catch (err) {
+      console.error("respond to event invite failed", err);
+      alert(err?.message || "Could not update invitation.");
+    } finally {
+      setEventSaving(false);
+    }
+  };
+
+  const handleEventUploadSubmit = async (e) => {
+    e.preventDefault();
+
+    const title = eventUploadTitle.trim();
+    const subtitle = eventUploadDescription.trim();
+    if (!user || !activeEvent || !eventUploadFile || !title || !subtitle) return;
+
+    try {
+      setEventUploading(true);
+      const { url, publicId } = await uploadToCloudinary(eventUploadFile);
+
+      await addDoc(collection(db, "eventPhotos"), {
+        eventId: activeEvent.id,
+        title,
+        subtitle,
+        url,
+        publicId: publicId || "",
+        ownerUid: user.uid,
+        ownerName: displayName,
+        createdAt: serverTimestamp(),
+      });
+
+      const eventUpdate = {
+        photoCount: increment(1),
+        updatedAt: serverTimestamp(),
+      };
+      if (!activeEvent.coverPhotoUrl) {
+        eventUpdate.coverPhotoUrl = url;
+      }
+      await updateDoc(doc(db, "events", activeEvent.id), eventUpdate);
+
+      setEventUploadTitle("");
+      setEventUploadDescription("");
+      setEventUploadFile(null);
+      setShowEventUploadModal(false);
+      showToast("Photo added to event vault.", "success");
+    } catch (err) {
+      console.error("event upload failed", err);
+      alert(err?.message || "Could not upload event photo.");
+    } finally {
+      setEventUploading(false);
+    }
+  };
+
+  const toggleEventVote = async (photoId) => {
+    if (!user || !activeEvent || !photoId) return;
+    const voteId = `${activeEvent.id}_${photoId}_${user.uid}`;
+    const ref = doc(db, "eventVotes", voteId);
+    const already = Boolean(eventVotes[photoId]?.voted);
+
+    setEventVotes((prev) => ({
+      ...prev,
+      [photoId]: {
+        count: Math.max((prev[photoId]?.count || 0) + (already ? -1 : 1), 0),
+        voted: !already,
+      },
+    }));
+
+    try {
+      if (already) {
+        await deleteDoc(ref);
+      } else {
+        await setDoc(ref, {
+          eventId: activeEvent.id,
+          photoId,
+          uid: user.uid,
+          createdAt: serverTimestamp(),
+        });
+      }
+    } catch (err) {
+      console.error("toggle event vote failed", err);
+      setEventVotes((prev) => ({
+        ...prev,
+        [photoId]: {
+          count: Math.max((prev[photoId]?.count || 0) + (already ? 1 : -1), 0),
+          voted: already,
+        },
+      }));
+    }
+  };
+
+  const handleDeleteEventPhoto = async (image) => {
+    if (!user || !activeEvent || !image?.id) return;
+
+    const canDelete =
+      image.ownerUid === user.uid || activeEvent.ownerUid === user.uid;
+    if (!canDelete) return;
+
+    const confirmed = window.confirm(
+      `Delete "${image.title}" from this event vault?`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setEventSaving(true);
+
+      const votesSnap = await getDocs(
+        query(
+          collection(db, "eventVotes"),
+          where("photoId", "==", image.id),
+        ),
+      );
+
+      const remainingPhotos = eventPhotos.filter(
+        (photo) => photo.id !== image.id,
+      );
+      const nextCoverUrl =
+        activeEvent.coverPhotoUrl === image.url
+          ? remainingPhotos[0]?.url || ""
+          : activeEvent.coverPhotoUrl || "";
+
+      const batch = writeBatch(db);
+      batch.delete(doc(db, "eventPhotos", image.id));
+
+      votesSnap.forEach((voteDoc) => {
+        batch.delete(doc(db, "eventVotes", voteDoc.id));
+      });
+
+      batch.update(doc(db, "events", activeEvent.id), {
+        photoCount: increment(-1),
+        coverPhotoUrl: nextCoverUrl,
+        lastDeletedPhotoId: image.id,
+        updatedAt: serverTimestamp(),
+      });
+
+      await batch.commit();
+
+      if (detailImage?.id === image.id) setDetailImage(null);
+      showToast("Event photo deleted.", "success");
+    } catch (err) {
+      console.error("delete event photo failed", err);
+      alert(err?.message || "Could not delete event photo.");
+    } finally {
+      setEventSaving(false);
+    }
+  };
+
+  const openEditEventPhotoModal = (image) => {
+    if (!user || !activeEvent || !image?.id) return;
+    const canEdit =
+      image.ownerUid === user.uid || activeEvent.ownerUid === user.uid;
+    if (!canEdit) return;
+
+    setEditingEventPhotoId(image.id);
+    setEditTitle(image.title || "");
+    setEditDescription(image.subtitle || "");
+    setShowEditEventPhotoModal(true);
+  };
+
+  const handleEditEventPhotoSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingEventPhotoId) return;
+
+    const title = editTitle.trim();
+    const subtitle = editDescription.trim();
+    if (!title || !subtitle) return;
+
+    try {
+      setEventPhotoEditing(true);
+      await updateDoc(doc(db, "eventPhotos", editingEventPhotoId), {
+        title,
+        subtitle,
+        updatedAt: serverTimestamp(),
+      });
+
+      setDetailImage((prev) =>
+        prev?.id === editingEventPhotoId
+          ? {
+              ...prev,
+              title,
+              subtitle,
+            }
+          : prev,
+      );
+
+      setShowEditEventPhotoModal(false);
+      setEditingEventPhotoId("");
+      setEditTitle("");
+      setEditDescription("");
+      showToast("Event photo updated.", "success");
+    } catch (err) {
+      console.error("edit event photo failed", err);
+      alert(err?.message || "Could not update event photo.");
+    } finally {
+      setEventPhotoEditing(false);
+    }
+  };
+
   const handleAddSelectedToAlbum = async (albumId) => {
     if (!albumId || selectedIds.size === 0 || !user) return;
 
@@ -1532,6 +2195,14 @@ const handleAlbumDragEnd = async (event) => {
             </button>
 
             <button
+              onClick={() => setShowCreateEventModal(true)}
+              className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+            >
+              <CalendarDays size={16} />
+              <span className="hidden sm:inline">Create Event</span>
+            </button>
+
+            <button
               onClick={() => setShowUploadModal(true)}
               className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
             >
@@ -1566,17 +2237,44 @@ const handleAlbumDragEnd = async (event) => {
       <main className="min-h-screen bg-[#f6f7fb] px-6 pb-8 text-slate-900 dark:bg-[#1a2035] dark:text-white sm:px-10 lg:px-16">
         <div className="page-container pt-28 pb-0">
           <div className="section-card">
-            <p className="page-label">User dashboard</p>
-            <h1 className="page-title">
-              {viewMode === "albums"
-                ? activeAlbum
-                  ? activeAlbum.name
-                  : "Albums"
-                : "Themed Image Gallery"}
-            </h1>
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="page-label">User dashboard</p>
+                <h1 className="page-title">
+                  {viewMode === "events"
+                    ? activeEvent
+                      ? activeEvent.name
+                      : "Event Vaults"
+                    : viewMode === "albums"
+                    ? activeAlbum
+                      ? activeAlbum.name
+                      : "Albums"
+                    : "Themed Image Gallery"}
+                </h1>
+              </div>
+
+              {viewMode === "events" && activeEvent && isActiveEventOwner && (
+                <button
+                  type="button"
+                  onClick={openEditEventModal}
+                  disabled={eventSaving}
+                  className="group relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-900/60 dark:bg-emerald-900/20 dark:text-emerald-200 dark:hover:bg-emerald-900/30"
+                  aria-label="Edit event"
+                >
+                  <Pencil size={17} />
+                  <span className="pointer-events-none absolute bottom-full right-0 mb-2 hidden whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white shadow-lg group-hover:block group-focus:block">
+                    Edit event
+                  </span>
+                </button>
+              )}
+            </div>
 
             <p className="mt-2 max-w-190 text-[17px] text-[#64748b] dark:text-slate-400">
-              {viewMode === "albums"
+              {viewMode === "events"
+                ? activeEvent
+                  ? activeEvent.description || "Collect event photos from every member and vote on favorite moments."
+                  : "Create shared spaces where friends can contribute photos, comment, and vote on the best moments."
+                : viewMode === "albums"
                 ? activeAlbum
                   ? "View and organize photos inside this album."
                   : "Create albums and organize your photos like Google Photos."
@@ -1588,6 +2286,7 @@ const handleAlbumDragEnd = async (event) => {
                 onClick={() => {
                   setViewMode("photos");
                   setActiveAlbumId(null);
+                  setActiveEventId(null);
                 }}
                 className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
                   viewMode === "photos"
@@ -1603,6 +2302,7 @@ const handleAlbumDragEnd = async (event) => {
                 onClick={() => {
                   setViewMode("albums");
                   setActiveAlbumId(null);
+                  setActiveEventId(null);
                 }}
                 className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
                   viewMode === "albums" && !activeAlbum
@@ -1614,12 +2314,42 @@ const handleAlbumDragEnd = async (event) => {
                 Albums
               </button>
 
-              {activeAlbum && (
+              <button
+                onClick={() => {
+                  setViewMode("events");
+                  setActiveAlbumId(null);
+                  setActiveEventId(null);
+                }}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  viewMode === "events" && !activeEvent
+                    ? "bg-[#28457a] text-white shadow-md"
+                    : "border border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                }`}
+              >
+                <CalendarDays size={16} />
+                Events
+                {eventInvites.length > 0 && (
+                  <span className="ml-1 rounded-full bg-amber-400 px-2 py-0.5 text-xs font-bold text-[#0f172f]">
+                    {eventInvites.length}
+                  </span>
+                )}
+              </button>
+
+              {viewMode === "albums" && activeAlbum && (
                 <button
                   onClick={() => setActiveAlbumId(null)}
                   className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Back to Albums
+                </button>
+              )}
+
+              {viewMode === "events" && activeEvent && (
+                <button
+                  onClick={() => setActiveEventId(null)}
+                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  Back to Events
                 </button>
               )}
             </div>
@@ -1715,6 +2445,92 @@ const handleAlbumDragEnd = async (event) => {
                 )}
               </div>
             )}
+
+            {viewMode === "events" && activeEvent && (
+              <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                <div className="mr-auto flex flex-wrap items-center gap-3 text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                  <span
+                    tabIndex={0}
+                    className="group relative inline-flex cursor-default items-center gap-1 rounded-full px-2 py-1 outline-none transition hover:bg-white/70 focus:bg-white/70 dark:hover:bg-slate-800/70 dark:focus:bg-slate-800/70"
+                    aria-label={`Event members: ${
+                      eventMembers
+                        .map((member) => member.displayName || member.email || member.uid)
+                        .join(", ") || "Loading"
+                    }`}
+                  >
+                    <Users size={16} />
+                    {activeEvent.memberUids?.length || 1} member
+                    {(activeEvent.memberUids?.length || 1) === 1 ? "" : "s"}
+                    <span className="pointer-events-none absolute left-0 top-full z-30 mt-2 hidden min-w-60 max-w-80 rounded-2xl border border-slate-200 bg-white p-3 text-left text-sm font-medium text-slate-700 shadow-xl group-hover:block group-focus:block dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                      <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                        Members
+                      </span>
+                      <span className="block space-y-1.5">
+                        {eventMembers.length === 0 ? (
+                          <span className="block text-slate-500 dark:text-slate-400">
+                            Loading members...
+                          </span>
+                        ) : (
+                          eventMembers.map((member) => {
+                            const name =
+                              member.displayName || member.email || member.uid;
+                            const isOwner = member.uid === activeEvent.ownerUid;
+                            return (
+                              <span
+                                key={member.uid}
+                                className="flex items-center justify-between gap-3"
+                              >
+                                <span className="min-w-0 truncate">{name}</span>
+                                {isOwner && (
+                                  <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200">
+                                    Owner
+                                  </span>
+                                )}
+                              </span>
+                            );
+                          })
+                        )}
+                      </span>
+                  </span>
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <ImageIcon size={16} />
+                    {activeEvent.photoCount || eventPhotos.length} photo
+                    {(activeEvent.photoCount || eventPhotos.length) === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                {isActiveEventOwner && (
+                  <>
+                    <button
+                      onClick={() => setShowInviteEventModal(true)}
+                      disabled={eventSaving}
+                      className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-800 dark:bg-slate-800 dark:text-emerald-200 dark:hover:bg-emerald-900/30"
+                    >
+                      <Users size={16} />
+                      Invite by Email
+                    </button>
+
+                    <button
+                      onClick={handleDeleteEvent}
+                      disabled={eventSaving}
+                      className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-60 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
+                    >
+                      <Trash2 size={16} />
+                      {eventSaving ? "Deleting..." : "Delete Event"}
+                    </button>
+                  </>
+                )}
+
+                <button
+                  onClick={() => setShowEventUploadModal(true)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                >
+                  <Upload size={16} />
+                  Add Event Photo
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1794,6 +2610,23 @@ const handleAlbumDragEnd = async (event) => {
 	                          <MessageCircle size={18} />
 	                          <span>{commentCounts[image.id] ?? 0}</span>
 	                        </button>
+
+                        {owned && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditImageModal(image);
+                            }}
+                            className="group relative ml-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                            aria-label={`Edit ${image.title}`}
+                          >
+                            <Pencil size={16} />
+                            <span className="pointer-events-none absolute bottom-full right-0 mb-2 hidden whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white shadow-lg group-hover:block group-focus:block">
+                              Edit details
+                            </span>
+                          </button>
+                        )}
 	                      </div>
 
                       {isSharedItem && (
@@ -1812,7 +2645,7 @@ const handleAlbumDragEnd = async (event) => {
                         </div>
                       )}
 
-		                    </div>
+			                    </div>
 
                     <div className="absolute top-3 right-3 z-10">
                       <button
@@ -1842,7 +2675,8 @@ const handleAlbumDragEnd = async (event) => {
 	              })}
             </div>
           </section>
-        ) : !activeAlbum ? (
+        ) : viewMode === "albums" ? (
+          !activeAlbum ? (
           <section className="page-container mt-8 section-card">
             {albumCards.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-slate-300 p-10 text-center dark:border-slate-700">
@@ -1915,22 +2749,258 @@ const handleAlbumDragEnd = async (event) => {
           key={image.id}
           image={image}
           likesMap={likesMap}
-	          commentCounts={commentCounts}
-	          toggleLike={toggleLike}
-	          setDetailImage={setDetailImage}
-	          handleRemoveFromAlbum={handleRemoveFromAlbum}
-            onEditImage={openEditImageModal}
-            user={user}
-            openMenuId={openCardMenuId}
-            setOpenMenuId={setOpenCardMenuId}
+            commentCounts={commentCounts}
+            toggleLike={toggleLike}
+            setDetailImage={setDetailImage}
+            handleRemoveFromAlbum={handleRemoveFromAlbum}
             setSelectedIds={setSelectedIds}
-            setShowAIEditModal={setShowAIEditModal}
             selectedIds={selectedIds}
 	        />
 	      ))}
 	    </div>
 	  </SortableContext>
 </DndContext>
+            )}
+          </section>
+          )
+        ) : !activeEvent ? (
+          <section className="page-container mt-8 section-card">
+            {eventInvites.length > 0 && (
+              <div className="mb-8 rounded-3xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/60 dark:bg-amber-950/20">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
+                      Pending invitations
+                    </p>
+                    <p className="mt-1 text-sm text-amber-800/80 dark:text-amber-100/80">
+                      Accept an invitation to join the event vault and start contributing photos.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-amber-700 ring-1 ring-amber-200 dark:bg-slate-900 dark:text-amber-200 dark:ring-amber-900/60">
+                    {eventInvites.length}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  {eventInvites.map((invite) => (
+                    <article
+                      key={invite.id}
+                      className="flex flex-col gap-4 rounded-2xl bg-white p-4 ring-1 ring-amber-100 dark:bg-[#2a3655] dark:ring-amber-900/50 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <h3 className="text-lg font-bold text-[#0f172f] dark:text-white">
+                          {invite.eventName}
+                        </h3>
+                        {invite.eventDescription && (
+                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            {invite.eventDescription}
+                          </p>
+                        )}
+                        <p className="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                          Invited by {invite.ownerName || "Event owner"}
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleRespondToEventInvite(invite, "rejected")}
+                          disabled={eventSaving}
+                          className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRespondToEventInvite(invite, "accepted")}
+                          disabled={eventSaving}
+                          className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                        >
+                          Accept
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {events.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-slate-300 p-10 text-center dark:border-slate-700">
+                <p className="text-lg font-semibold text-slate-700 dark:text-slate-200">
+                  No event vaults yet
+                </p>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                  Create a shared space for a party, trip, class project, or team event.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {events.map((event) => (
+                  <button
+                    key={event.id}
+                    onClick={() => setActiveEventId(event.id)}
+                    className="overflow-hidden rounded-3xl bg-white text-left ring-2 ring-emerald-100 transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-[#2a3655] dark:ring-emerald-900/50"
+                  >
+                    <div className="aspect-[4/3] w-full overflow-hidden bg-emerald-50 dark:bg-emerald-950/30">
+                      {event.coverPhotoUrl ? (
+                        <img
+                          src={event.coverPhotoUrl}
+                          alt={event.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-emerald-500">
+                          <CalendarDays size={44} />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="text-lg font-bold text-[#0f172f] dark:text-white">
+                          {event.name}
+                        </h3>
+                        {event.ownerUid === user.uid && (
+                          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+                            Owner
+                          </span>
+                        )}
+                      </div>
+                      {event.description && (
+                        <p className="mt-2 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">
+                          {event.description}
+                        </p>
+                      )}
+                      <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 dark:bg-slate-800">
+                          <Users size={13} />
+                          {event.memberUids?.length || 1}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 dark:bg-slate-800">
+                          <ImageIcon size={13} />
+                          {event.photoCount || 0}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        ) : (
+          <section className="page-container mt-8 section-card">
+            {filteredImages.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-slate-300 p-10 text-center dark:border-slate-700">
+                <p className="text-lg font-semibold text-slate-700 dark:text-slate-200">
+                  This event vault is empty
+                </p>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                  Add the first event photo, then invite others to contribute their view of the moment.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredImages.map((image) => {
+                  const voteState = eventVotes[image.id] || { count: 0, voted: false };
+                  const canManageEventPhoto =
+                    image.ownerUid === user.uid || activeEvent.ownerUid === user.uid;
+                  return (
+                    <article
+                      key={image.id}
+                      className="relative overflow-hidden rounded-3xl bg-white ring-2 ring-emerald-100 dark:bg-[#2a3655] dark:ring-emerald-900/50"
+                    >
+                      <div className="relative">
+                        <img
+                          src={image.url}
+                          alt={image.title}
+                          onClick={() => setDetailImage(image)}
+                          className="gallery-card-img"
+                        />
+                        {voteState.count > 0 && (
+                          <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-black/60 px-3 py-1 text-xs font-bold text-white backdrop-blur">
+                            <Trophy size={14} />
+                            {voteState.count}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="gallery-card-body">
+                        <h2 className="card-title">{image.title}</h2>
+                        <p className="card-subtitle">{image.subtitle}</p>
+                        {image.ownerName && (
+                          <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                            Added by {image.ownerName}
+                          </p>
+                        )}
+
+                        <div className="card-stats">
+                          <button
+                            onClick={() => toggleEventVote(image.id)}
+                            className="card-stat-btn"
+                          >
+                            <Trophy
+                              size={18}
+                              className={
+                                voteState.voted
+                                  ? "fill-amber-400 text-amber-500"
+                                  : "text-slate-400 dark:text-slate-500"
+                              }
+                            />
+                            <span
+                              className={
+                                voteState.voted
+                                  ? "text-amber-600 dark:text-amber-300"
+                                  : "text-slate-500 dark:text-slate-400"
+                              }
+                            >
+                              {voteState.voted ? "Voted" : "Vote"} ({voteState.count})
+                            </span>
+                          </button>
+
+                          <button
+                            onClick={() => setDetailImage(image)}
+                            className="card-comment-btn"
+                          >
+                            <MessageCircle size={18} />
+                            <span>{commentCounts[image.id] ?? 0}</span>
+                          </button>
+
+                          {canManageEventPhoto && (
+                            <>
+                            <button
+                              type="button"
+                              onClick={() => openEditEventPhotoModal(image)}
+                              disabled={eventPhotoEditing}
+                              className="group relative ml-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                              aria-label={`Edit ${image.title}`}
+                            >
+                              <Pencil size={16} />
+                              <span className="pointer-events-none absolute bottom-full right-0 mb-2 hidden whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white shadow-lg group-hover:block group-focus:block">
+                                Edit details
+                              </span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteEventPhoto(image)}
+                              disabled={eventSaving}
+                              className="group relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 disabled:opacity-60 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
+                              aria-label={`Delete ${image.title}`}
+                            >
+                              <Trash2 size={16} />
+                              <span className="pointer-events-none absolute bottom-full right-0 mb-2 hidden whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white shadow-lg group-hover:block group-focus:block">
+                                Delete photo
+                              </span>
+                            </button>
+                            </>
+                          )}
+                          </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
             )}
           </section>
         )}
@@ -2191,6 +3261,128 @@ const handleAlbumDragEnd = async (event) => {
           </div>
         )}
 
+        {showEditEventModal && activeEvent && (
+          <div className="modal-overlay">
+            <div className="w-full max-w-[560px] rounded-[28px] bg-white p-8 shadow-xl dark:bg-[#2a3655]">
+              <h2 className="text-[24px] font-bold text-[#0f172f] dark:text-white">
+                Edit Event
+              </h2>
+              <p className="modal-subtitle">
+                Update the name and description shown to event members.
+              </p>
+
+              <form className="mt-6 space-y-4" onSubmit={handleEditEventSubmit}>
+                <div>
+                  <label className="form-label">Event Name</label>
+                  <input
+                    type="text"
+                    value={editEventName}
+                    onChange={(e) => setEditEventName(e.target.value)}
+                    placeholder="CMPE 280 Hackathon"
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Description</label>
+                  <input
+                    type="text"
+                    value={editEventDescription}
+                    onChange={(e) => setEditEventDescription(e.target.value)}
+                    placeholder="Team photos, demos, and final presentation moments"
+                    className="form-input"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditEventModal(false);
+                      setEditEventName(activeEvent.name || "");
+                      setEditEventDescription(activeEvent.description || "");
+                    }}
+                    disabled={eventSaving}
+                    className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={eventSaving || !editEventName.trim()}
+                    className="h-12 w-1/2 rounded-2xl bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {eventSaving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showEditEventPhotoModal && (
+          <div className="modal-overlay">
+            <div className="w-full max-w-125 rounded-[28px] bg-white p-8 shadow-xl dark:bg-[#2a3655]">
+              <h2 className="text-[24px] font-bold text-[#0f172f] dark:text-white">
+                Edit Event Photo
+              </h2>
+              <p className="modal-subtitle">
+                Update the title and caption shown in this event vault.
+              </p>
+
+              <form className="mt-6 space-y-4" onSubmit={handleEditEventPhotoSubmit}>
+                <div>
+                  <label className="form-label">Title</label>
+                  <input
+                    type="text"
+                    placeholder="Photo title"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Caption</label>
+                  <input
+                    type="text"
+                    placeholder="Photo caption"
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditEventPhotoModal(false);
+                      setEditingEventPhotoId("");
+                      setEditTitle("");
+                      setEditDescription("");
+                    }}
+                    disabled={eventPhotoEditing}
+                    className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={eventPhotoEditing || !editTitle.trim() || !editDescription.trim()}
+                    className="h-12 w-1/2 rounded-2xl bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {eventPhotoEditing ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {showCreateAlbumModal && (
           <div className="modal-overlay">
             <div className="w-full max-w-[520px] rounded-[28px] bg-white p-8 shadow-xl dark:bg-[#2a3655]">
@@ -2292,6 +3484,195 @@ const handleAlbumDragEnd = async (event) => {
           </div>
         )}
 
+        {showCreateEventModal && (
+          <div className="modal-overlay">
+            <div className="w-full max-w-[560px] rounded-[28px] bg-white p-8 shadow-xl dark:bg-[#2a3655]">
+              <h2 className="text-[24px] font-bold text-[#0f172f] dark:text-white">
+                Create Event Vault
+              </h2>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Make a shared space where members can add photos and vote on favorite moments.
+              </p>
+
+              <form className="mt-6 space-y-4" onSubmit={handleCreateEvent}>
+                <div>
+                  <label className="form-label">Event Name</label>
+                  <input
+                    type="text"
+                    value={newEventName}
+                    onChange={(e) => setNewEventName(e.target.value)}
+                    placeholder="CMPE 280 Hackathon"
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Description</label>
+                  <input
+                    type="text"
+                    value={newEventDescription}
+                    onChange={(e) => setNewEventDescription(e.target.value)}
+                    placeholder="Team photos, demos, and final presentation moments"
+                    className="form-input"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateEventModal(false);
+                      setNewEventName("");
+                      setNewEventDescription("");
+                    }}
+                    disabled={eventSaving}
+                    className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={eventSaving || !newEventName.trim()}
+                    className="h-12 w-1/2 rounded-2xl bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {eventSaving ? "Creating..." : "Create Vault"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showInviteEventModal && activeEvent && (
+          <div className="modal-overlay">
+            <div className="w-full max-w-[520px] rounded-[28px] bg-white p-8 shadow-xl dark:bg-[#2a3655]">
+              <h2 className="text-[24px] font-bold text-[#0f172f] dark:text-white">
+                Send Event Invitation
+              </h2>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Send a pending invitation to a registered PixelVault user. They join only after accepting it.
+              </p>
+
+              <form className="mt-6 space-y-4" onSubmit={handleInviteToEvent}>
+                <div>
+                  <label className="form-label">User Email</label>
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="friend@example.com"
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowInviteEventModal(false);
+                      setInviteEmail("");
+                    }}
+                    disabled={eventSaving}
+                    className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={eventSaving || !inviteEmail.trim()}
+                    className="h-12 w-1/2 rounded-2xl bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {eventSaving ? "Sending..." : "Send Invite"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showEventUploadModal && activeEvent && (
+          <div className="modal-overlay">
+            <div className="w-full max-w-[540px] rounded-[28px] bg-white p-8 shadow-xl dark:bg-[#2a3655]">
+              <h2 className="text-[24px] font-bold text-[#0f172f] dark:text-white">
+                Add Event Photo
+              </h2>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Contribute a photo to &ldquo;{activeEvent.name}&rdquo;.
+              </p>
+
+              <form className="mt-6 space-y-4" onSubmit={handleEventUploadSubmit}>
+                <div>
+                  <label className="form-label">Title</label>
+                  <input
+                    type="text"
+                    value={eventUploadTitle}
+                    onChange={(e) => setEventUploadTitle(e.target.value)}
+                    placeholder="Demo day highlights"
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Caption</label>
+                  <input
+                    type="text"
+                    value={eventUploadDescription}
+                    onChange={(e) => setEventUploadDescription(e.target.value)}
+                    placeholder="What was happening in this moment?"
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Image File</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setEventUploadFile(e.target.files[0] || null)}
+                    className="w-full text-sm text-slate-700 dark:text-slate-300"
+                    required
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEventUploadModal(false);
+                      setEventUploadTitle("");
+                      setEventUploadDescription("");
+                      setEventUploadFile(null);
+                    }}
+                    disabled={eventUploading}
+                    className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={
+                      eventUploading ||
+                      !eventUploadTitle.trim() ||
+                      !eventUploadDescription.trim() ||
+                      !eventUploadFile
+                    }
+                    className="h-12 w-1/2 rounded-2xl bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {eventUploading ? "Uploading..." : "Add Photo"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {toast && (
           <div className="pointer-events-none fixed bottom-6 left-1/2 z-100 -translate-x-1/2">
             <div
@@ -2325,7 +3706,7 @@ const handleAlbumDragEnd = async (event) => {
           addComment={addComment}
           deleteComment={deleteComment}
           onOpenShare={(image) => setShareDialogUpload(image)}
-          canShare={isOwnedUpload(detailImage, user)}
+          canShare={isOwnedUpload(detailImage, user) && !detailImage.isEventPhoto}
         />
       )}
 
@@ -2334,7 +3715,6 @@ const handleAlbumDragEnd = async (event) => {
         upload={shareDialogUpload}
         onClose={() => setShareDialogUpload(null)}
         currentUser={user}
-        currentProfile={profile}
       />
 
       <VideoGeneratorModal
