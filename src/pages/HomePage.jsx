@@ -21,29 +21,36 @@ import {
 const features = [
   {
     icon: Search,
-    title: "AI-Powered Search",
+    title: "Fast Gallery Search",
     description:
-      "Instantly find specific memories by searching for people, places, or objects within your photos.",
+      "Search the themed gallery and your dashboard photos by title, caption, and category.",
   },
   {
     icon: Layout,
-    title: "Smart Albums",
+    title: "Albums & Event Vaults",
     description:
-      "Your photos are automatically organized into beautiful collections based on time and location.",
+      "Organize photos into albums or create collaborative event spaces with invitations, votes, and comments.",
   },
   {
     icon: Zap,
-    title: "Instant Upload",
+    title: "Creative Upload Tools",
     description:
-      "Seamlessly sync your library from any device with high-speed background uploading.",
+      "Upload images to your account, edit details, apply AI styles, and turn albums into short videos.",
   },
 ];
 
 const benefits = [
-  "Secure cloud storage for every memory",
-  "High-resolution photo and video viewing",
-  "Automatic AI-driven categorization",
-  "Cross-platform access on all devices",
+  "Secure accounts with editable user profiles",
+  "Cloud-backed photo uploads",
+  "Invite-based event vault collaboration",
+  "Likes, comments, votes, sharing, and slideshow tools",
+];
+
+const coverPhotos = [
+  "/images/cover-photos/enrico-bet-IicyiaPYGGI-unsplash.jpg",
+  "/images/cover-photos/adam-kool-ndN00KmbJ1c-unsplash.jpg",
+  "/images/cover-photos/vincent-van-zalinge-vUNQaTtZeOo-unsplash.jpg",
+  "/images/cover-photos/casey-horner-4rDCa5hBlCs-unsplash.jpg",
 ];
 
 export default function App() {
@@ -165,7 +172,7 @@ export default function App() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#28457a] opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#28457a]"></span>
               </span>
-              New: Unlimited high-res backup
+              New: Collaborative event vaults
             </div>
 
             <h1 className="mt-8 max-w-[700px] text-[48px] font-extrabold leading-[1.05] tracking-tight text-[#0f172f] dark:text-white sm:text-[64px] lg:text-[72px]">
@@ -176,9 +183,9 @@ export default function App() {
             </h1>
 
             <p className="mt-6 max-w-[600px] text-[18px] leading-relaxed text-[#64748b] dark:text-slate-300 sm:text-[20px]">
-              Effortlessly upload, organize, and rediscover your favorite
-              moments. Experience a secure, AI-powered gallery designed to keep
-              your life's story safe and searchable.
+              Upload photos, organize albums, share event spaces, and turn
+              collections into styled images or short slideshow videos from one
+              focused gallery dashboard.
             </p>
 
             <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -215,28 +222,28 @@ export default function App() {
             <div className="mt-14 flex items-center gap-8 border-t border-slate-200 dark:border-slate-700 pt-8">
               <div>
                 <p className="text-[32px] font-extrabold tracking-tight text-[#0f172f] dark:text-white">
-                  10k+
+                  Live
                 </p>
                 <p className="text-sm font-medium text-[#64748b] dark:text-slate-400">
-                  Photos stored
+                  Collaboration
                 </p>
               </div>
               <div className="h-12 w-px bg-slate-200 dark:bg-slate-700"></div>
               <div>
                 <p className="text-[32px] font-extrabold tracking-tight text-[#0f172f] dark:text-white">
-                  Unlimited
+                  Event
                 </p>
                 <p className="text-sm font-medium text-[#64748b] dark:text-slate-400">
-                  Cloud backup
+                  Shared vaults
                 </p>
               </div>
               <div className="hidden sm:block h-12 w-px bg-slate-200 dark:bg-slate-700"></div>
               <div className="hidden sm:block">
                 <p className="text-[32px] font-extrabold tracking-tight text-[#0f172f] dark:text-white">
-                  99.9%
+                  AI
                 </p>
                 <p className="text-sm font-medium text-[#64748b] dark:text-slate-400">
-                  Uptime safety
+                  Style + video
                 </p>
               </div>
             </div>
@@ -261,7 +268,7 @@ export default function App() {
                   type="text"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Try 'Sunset at the beach' or 'Family dinner'..."
+                  placeholder="Try 'Nature', 'Fox', 'Tacos', or 'Skyline'..."
                   className="h-[60px] w-full rounded-2xl border border-white/30 dark:border-slate-500 bg-white/20 dark:bg-slate-700/70 pl-14 pr-6 text-[16px] text-slate-800 dark:text-white shadow-[inset_0_1px_4px_rgba(0,0,0,0.05)] outline-none backdrop-blur-md transition-all placeholder:text-slate-500 dark:placeholder:text-slate-300 hover:bg-white/30 dark:hover:bg-slate-700/90 focus:border-white/50 dark:focus:border-slate-400 focus:bg-white/40 focus:ring-4 focus:ring-white/20"
                 />
               </div>
@@ -327,7 +334,7 @@ export default function App() {
                     No matches found
                   </p>
                   <p className="mt-1 text-xs text-slate-600 drop-shadow-sm">
-                    Try searching for a different memory.
+                    Try searching for another title, theme, or caption.
                   </p>
                 </div>
               ) : null}
@@ -343,22 +350,23 @@ export default function App() {
           <div className="mx-auto w-full max-w-[1440px] px-6 sm:px-10 lg:px-16">
             <div className="flex flex-col items-center gap-12 lg:flex-row lg:gap-20">
               <div className="flex-1">
-                <p className="section-label">Cloud Storage</p>
+                <p className="section-label">Connected Gallery</p>
                 <h2 className="section-title">
-                  Your memories, safe and always accessible.
+                  Upload, organize, and collaborate in one dashboard.
                 </h2>
                 <p className="mt-5 text-[18px] leading-relaxed text-[#64748b] dark:text-slate-400">
-                  Every photo you upload is securely stored in the cloud with
-                  unlimited backup. Access your full library from any device,
-                  anywhere in the world — no storage limits, no compromise.
+                  PixelVault combines secure accounts, live gallery activity,
+                  and cloud-backed image uploads so each user can build a
+                  personal gallery, share selected photos, and collaborate
+                  inside event vaults.
                 </p>
 
                 <ul className="mt-8 space-y-4">
                   {[
-                    "Unlimited cloud backup for all your photos",
-                    "Cross-device sync in real time",
-                    "99.9% uptime with encrypted storage",
-                    "Instant restore from any point in time",
+                    "Upload and manage personal photo details",
+                    "Create albums and reorder album photos",
+                    "Share uploads by email or public link",
+                    "Invite users to event vaults and collect votes",
                   ].map((item) => (
                     <li
                       key={item}
@@ -375,26 +383,50 @@ export default function App() {
               </div>
 
               <div className="flex-1 w-full">
-                <div className="rounded-[32px] bg-white dark:bg-[#2a3655] p-8 shadow-[0_8px_40px_rgba(15,23,47,0.08)] ring-1 ring-slate-200 dark:ring-slate-700">
+                <div className="overflow-hidden rounded-[32px] bg-white dark:bg-[#2a3655] shadow-[0_8px_40px_rgba(15,23,47,0.08)] ring-1 ring-slate-200 dark:ring-slate-700">
+                  <div className="relative h-56 overflow-hidden">
+                    <img
+                      src={coverPhotos[0]}
+                      alt="Landscape gallery cover"
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0f172f]/80 via-[#0f172f]/20 to-transparent"></div>
+                    <div className="absolute bottom-5 left-5 right-5 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/70">
+                          Live workspace
+                        </p>
+                        <p className="mt-1 text-2xl font-extrabold text-white">
+                          Gallery dashboard
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-white/90 px-4 py-2 text-sm font-bold text-[#0f172f] shadow-lg backdrop-blur">
+                        Event ready
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-8">
                   <div className="flex items-center gap-4 border-b border-slate-100 dark:border-slate-700 pb-6">
                     <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#000d33] to-[#28457a]">
                       <ImageIcon size={26} className="text-white" />
                     </div>
                     <div>
                       <p className="text-[18px] font-bold text-[#0f172f] dark:text-white">
-                        PixelVault Cloud
+                        PixelVault Dashboard
                       </p>
                       <p className="text-sm text-[#64748b] dark:text-slate-400">
-                        Unlimited · Encrypted · Always on
+                        Uploads · Albums · Events
                       </p>
                     </div>
                   </div>
 
                   <div className="mt-6 grid grid-cols-3 gap-4 text-center">
                     {[
-                      { value: "10k+", label: "Photos stored" },
-                      { value: "∞", label: "Cloud backup" },
-                      { value: "99.9%", label: "Uptime" },
+                      { value: "Live", label: "Collaboration" },
+                      { value: "Live", label: "Activity" },
+                      { value: "AI", label: "Tools" },
                     ].map((stat) => (
                       <div
                         key={stat.label}
@@ -408,6 +440,7 @@ export default function App() {
                         </p>
                       </div>
                     ))}
+                  </div>
                   </div>
                 </div>
               </div>
@@ -424,11 +457,12 @@ export default function App() {
             <div className="max-w-[720px]">
               <p className="section-label">Why PixelVault</p>
               <h2 className="section-title">
-                Powering your visual world with ease.
+                Built around the features you can use today.
               </h2>
               <p className="mt-5 text-[18px] leading-relaxed text-[#64748b] dark:text-slate-400">
-                From high-speed uploads to intelligent categorization, we’ve
-                built the ultimate space to archive your life’s journey.
+                PixelVault focuses on practical gallery workflows: browse,
+                upload, organize, collaborate, edit, share, and generate
+                videos from your own albums.
               </p>
             </div>
 
@@ -438,8 +472,18 @@ export default function App() {
                 return (
                   <div
                     key={idx}
-                    className="group relative rounded-[32px] border border-slate-100 dark:border-slate-700 bg-white dark:bg-[#2a3655] p-8 shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(15,23,47,0.08)]"
+                    className="group relative overflow-hidden rounded-[32px] border border-slate-100 dark:border-slate-700 bg-white dark:bg-[#2a3655] shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(15,23,47,0.08)]"
                   >
+                    <div className="relative h-40 overflow-hidden bg-white dark:bg-[#2a3655]">
+                      <img
+                        src={coverPhotos[idx + 1]}
+                        alt={`${feature.title} cover`}
+                        className="h-[calc(100%+2px)] w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        loading="lazy"
+                      />
+                      <div className="absolute -bottom-px inset-x-0 top-0 bg-gradient-to-t from-white via-white/20 to-transparent dark:from-[#2a3655]"></div>
+                    </div>
+                    <div className="relative -mt-px bg-white p-8 pt-0 dark:bg-[#2a3655]">
                     <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f0f4ff] dark:bg-slate-700 text-[#28457a] dark:text-blue-400 transition-colors group-hover:bg-[#000d33] group-hover:text-white">
                       <Icon size={24} strokeWidth={2.5} />
                     </div>
@@ -449,6 +493,7 @@ export default function App() {
                     <p className="mt-3 text-[16px] leading-relaxed text-[#64748b] dark:text-slate-400">
                       {feature.description}
                     </p>
+                    </div>
                   </div>
                 );
               })}
@@ -464,20 +509,25 @@ export default function App() {
           <div className="mx-auto w-full max-w-[1440px] px-6 sm:px-10 lg:px-16">
             <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
               <div className="relative overflow-hidden rounded-[40px] bg-[#000d33] px-8 py-12 sm:px-12 lg:py-20 shadow-2xl">
-                <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-[#28457a] opacity-50 blur-3xl"></div>
-                <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-[#dde7ff] opacity-20 blur-3xl"></div>
+                <img
+                  src={coverPhotos[3]}
+                  alt="Shared photo vault cover"
+                  className="absolute inset-0 h-full w-full object-cover opacity-55"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-gradient-to-br from-[#000d33]/95 via-[#000d33]/80 to-[#28457a]/50"></div>
 
                 <div className="relative z-10">
                   <p className="text-sm font-bold uppercase tracking-[0.15em] text-[#dde7ff]">
-                    Your Privacy First
+                    Your Dashboard
                   </p>
                   <h2 className="mt-5 text-[36px] font-extrabold tracking-tight text-white sm:text-[44px] leading-[1.1]">
-                    Your memories, protected and organized forever.
+                    Your photos, albums, and event moments in one place.
                   </h2>
                   <p className="mt-6 text-[18px] leading-relaxed text-white/80">
-                    PixelVault isn't just a folder; it's an intelligent
-                    assistant that helps you find exactly what you're looking
-                    for, the moment you need it. Secure, private, and yours.
+                    PixelVault gives each account its own dashboard for uploads,
+                    albums, profile settings, event invitations, comments,
+                    likes, votes, sharing, and creative AI-assisted tools.
                   </p>
                 </div>
               </div>
@@ -507,6 +557,13 @@ export default function App() {
           <div className="absolute right-1/4 top-1/2 h-[300px] w-[300px] -translate-y-1/2 rounded-full bg-[#dde7ff]/40 blur-[100px] pointer-events-none"></div>
 
           <div className="relative overflow-hidden rounded-[40px] border border-white/60 bg-white/20 px-8 py-14 shadow-[0_24px_80px_rgba(15,23,47,0.06),inset_0_1px_2px_rgba(255,255,255,0.7)] backdrop-blur-3xl backdrop-saturate-150 sm:px-14 lg:py-20 text-center">
+            <img
+              src={coverPhotos[1]}
+              alt="Photo collection cover"
+              className="absolute inset-0 h-full w-full object-cover opacity-20"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-white/70 dark:bg-[#1a2035]/75"></div>
             <div className="relative z-10 mx-auto max-w-[800px]">
               <p className="mb-4 section-label tracking-[0.25em]">
                 Get Started
@@ -515,8 +572,9 @@ export default function App() {
                 Ready to start preserving your story?
               </h2>
               <p className="mx-auto mt-6 max-w-[600px] text-[18px] leading-relaxed text-[#64748b] dark:text-slate-400">
-                Join thousands of users who trust PixelVault to keep their
-                photos safe, searchable, and stunningly organized.
+                Create an account, upload your first photos, build albums, and
+                invite others into an event vault when a moment deserves a
+                shared gallery.
               </p>
             </div>
 
@@ -565,8 +623,8 @@ export default function App() {
                 </h2>
               </div>
               <p className="mt-5 max-w-[300px] text-[15px] leading-relaxed text-[#64748b] dark:text-slate-400">
-                The modern home for organizing, searching, and showcasing your
-                life's memories with lightning speed and elegant design.
+                A modern photo dashboard for themed browsing, uploads, albums,
+                event vaults, sharing, comments, votes, and creative tools.
               </p>
             </div>
 
@@ -576,7 +634,7 @@ export default function App() {
                 Features
               </h3>
               <ul className="mt-5 flex flex-col gap-3">
-                {["Upload", "AI Search", "Sharing", "Mobile App"].map(
+                {["Uploads", "Albums", "Event Vaults", "AI Tools"].map(
                   (item) => (
                     <li key={item}>
                       <a
@@ -596,7 +654,7 @@ export default function App() {
                 Support
               </h3>
               <ul className="mt-5 flex flex-col gap-3">
-                {["Help Center", "Safety", "Community", "Blog"].map((item) => (
+                {["Profile", "Sharing", "Comments", "Dark Mode"].map((item) => (
                   <li key={item}>
                     <a
                       href={`#${item.toLowerCase()}`}
