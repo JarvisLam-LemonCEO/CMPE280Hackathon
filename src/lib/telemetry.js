@@ -6,7 +6,7 @@ import {
   setUserProperties as firebaseSetUserProperties,
 } from "firebase/analytics";
 import {
-  getPerformance,
+  initializePerformance,
   trace as firebaseTrace,
 } from "firebase/performance";
 import { app } from "./firebase";
@@ -81,7 +81,10 @@ function getPerformanceInstance() {
 
   performanceInitAttempted = true;
   try {
-    performanceInstance = getPerformance(app);
+    performanceInstance = initializePerformance(app, {
+      dataCollectionEnabled: true,
+      instrumentationEnabled: false,
+    });
   } catch (err) {
     debugWarn("Firebase Performance unavailable", err);
     performanceInstance = null;
