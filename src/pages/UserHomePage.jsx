@@ -1715,21 +1715,6 @@ function UserHomePage() {
       typeof event?.photoCount === "number" ? event.photoCount : eventPhotos.length,
   });
 
-  const trackEventModalOpen = (modalName, params = {}) => {
-    trackEvent("event_modal_open", {
-      modal_name: modalName,
-      ...params,
-    });
-  };
-
-  const trackEventModalClose = (modalName, reason, params = {}) => {
-    trackEvent("event_modal_close", {
-      modal_name: modalName,
-      reason,
-      ...params,
-    });
-  };
-
   const openEventVault = (event, source = "event_card") => {
     if (!event?.id) return;
     trackEvent("event_view", {
@@ -1739,24 +1724,15 @@ function UserHomePage() {
     setActiveEventId(event.id);
   };
 
-  const closeActiveEvent = (source = "back_button") => {
-    if (activeEvent) {
-      trackEvent("event_back", {
-        source,
-        ...eventTelemetryParams(activeEvent),
-        displayed_photo_count: eventPhotos.length,
-      });
-    }
+  const closeActiveEvent = () => {
     setActiveEventId(null);
   };
 
   const openCreateEventModal = () => {
-    trackEventModalOpen("event_create");
     setShowCreateEventModal(true);
   };
 
-  const closeCreateEventModal = (reason = "cancel") => {
-    trackEventModalClose("event_create", reason);
+  const closeCreateEventModal = () => {
     setShowCreateEventModal(false);
     setNewEventName("");
     setNewEventDescription("");
@@ -1764,28 +1740,20 @@ function UserHomePage() {
 
   const openInviteEventModal = () => {
     if (!activeEvent || !isActiveEventOwner) return;
-    trackEventModalOpen("event_invite", eventTelemetryParams(activeEvent));
     setShowInviteEventModal(true);
   };
 
-  const closeInviteEventModal = (reason = "cancel") => {
-    trackEventModalClose("event_invite", reason, eventTelemetryParams(activeEvent));
+  const closeInviteEventModal = () => {
     setShowInviteEventModal(false);
     setInviteEmail("");
   };
 
   const openEventUploadModal = () => {
     if (!activeEvent) return;
-    trackEventModalOpen("event_photo_upload", eventTelemetryParams(activeEvent));
     setShowEventUploadModal(true);
   };
 
-  const closeEventUploadModal = (reason = "cancel") => {
-    trackEventModalClose(
-      "event_photo_upload",
-      reason,
-      eventTelemetryParams(activeEvent),
-    );
+  const closeEventUploadModal = () => {
     setShowEventUploadModal(false);
     setEventUploadTitle("");
     setEventUploadDescription("");
@@ -1801,13 +1769,7 @@ function UserHomePage() {
     const confirmed = window.confirm(
       `Delete event vault "${activeEvent.name}"? This removes the event, its contributed photos, and all votes.`,
     );
-    if (!confirmed) {
-      trackEvent("event_delete_cancel", {
-        ...eventTelemetryParams(activeEvent),
-        photo_count: photoCount,
-      });
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       setEventSaving(true);
@@ -1875,14 +1837,12 @@ function UserHomePage() {
 
   const openEditEventModal = () => {
     if (!activeEvent || !isActiveEventOwner) return;
-    trackEventModalOpen("event_edit", eventTelemetryParams(activeEvent));
     setEditEventName(activeEvent.name || "");
     setEditEventDescription(activeEvent.description || "");
     setShowEditEventModal(true);
   };
 
-  const closeEditEventModal = (reason = "cancel") => {
-    trackEventModalClose("event_edit", reason, eventTelemetryParams(activeEvent));
+  const closeEditEventModal = () => {
     setShowEditEventModal(false);
     setEditEventName(activeEvent?.name || "");
     setEditEventDescription(activeEvent?.description || "");
@@ -2220,13 +2180,7 @@ function UserHomePage() {
     const confirmed = window.confirm(
       `Delete "${image.title}" from this event vault?`,
     );
-    if (!confirmed) {
-      trackEvent("event_photo_delete_cancel", {
-        ...eventTelemetryParams(activeEvent),
-        vote_count: eventVotes[image.id]?.count || 0,
-      });
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       setEventSaving(true);
@@ -2291,22 +2245,13 @@ function UserHomePage() {
       image.ownerUid === user.uid || activeEvent.ownerUid === user.uid;
     if (!canEdit) return;
 
-    trackEventModalOpen("event_photo_edit", {
-      ...eventTelemetryParams(activeEvent),
-      permission: image.ownerUid === user.uid ? "photo_owner" : "event_owner",
-    });
     setEditingEventPhotoId(image.id);
     setEditTitle(image.title || "");
     setEditDescription(image.subtitle || "");
     setShowEditEventPhotoModal(true);
   };
 
-  const closeEditEventPhotoModal = (reason = "cancel") => {
-    trackEventModalClose(
-      "event_photo_edit",
-      reason,
-      eventTelemetryParams(activeEvent),
-    );
+  const closeEditEventPhotoModal = () => {
     setShowEditEventPhotoModal(false);
     setEditingEventPhotoId("");
     setEditTitle("");
