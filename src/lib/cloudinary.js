@@ -120,16 +120,22 @@ export async function uploadToCloudinary(file) {
   }
 
   const resourceType = getResourceType(file);
+
   const isLargeVideo =
-    resourceType === "video" && typeof file.size === "number" && file.size > 100 * 1024 * 1024;
+    resourceType === "video" &&
+    typeof file.size === "number" &&
+    file.size > 100 * 1024 * 1024;
 
   const data = isLargeVideo
     ? await uploadVideoChunked(file)
     : await uploadSimple(file, resourceType);
 
   return {
+    // group-compatible fields
     url: data.secure_url,
     publicId: data.public_id,
+
+    // your added functionality support
     resourceType: data.resource_type || resourceType,
     mimeType: file.type || "application/octet-stream",
     originalFilename: file.name || data.original_filename || "uploaded-file",

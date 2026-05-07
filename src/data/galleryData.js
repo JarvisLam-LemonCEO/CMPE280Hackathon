@@ -143,13 +143,6 @@ export const themeData = [
       },
     ],
   },
-  {
-    id: "Dance",
-    label: "Dance",
-    description: "Expressions of movement and rhythm in various dance forms.",
-    accentClass: "bg-pink-100 text-pink-700 border border-pink-200",
-    images: []
-  }
 ];
 
 export const themeById = Object.fromEntries(

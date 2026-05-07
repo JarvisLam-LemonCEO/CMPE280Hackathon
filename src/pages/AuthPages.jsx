@@ -33,6 +33,7 @@ export default function AuthPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const mode = searchParams.get("mode") === "signup" ? "signup" : "login";
+  const nextPath = searchParams.get("next");
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -79,7 +80,7 @@ export default function AuthPage() {
         loginEmail.trim(),
         loginPassword,
       );
-      navigate("/user-home");
+      navigate(nextPath || "/user-home");
     } catch (err) {
       alert(friendlyAuthError(err?.code));
     } finally {
@@ -107,7 +108,7 @@ export default function AuthPage() {
         signupEmail.trim(),
         signupPassword,
       );
-      navigate("/user-home");
+      navigate(nextPath || "/user-home");
     } catch (err) {
       alert(friendlyAuthError(err?.code));
     } finally {
