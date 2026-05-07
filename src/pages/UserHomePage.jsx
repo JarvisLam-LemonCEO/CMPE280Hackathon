@@ -117,8 +117,8 @@ const SortableAlbumPhotoCard = ({
       }`}
     >
       <div className="relative">
-        <img
-          src={image.url}
+        <FilePreview
+          file={image}
           alt={image.title}
           onClick={() => {
             if (!isDragging) setDetailImage(image);
@@ -712,6 +712,7 @@ function UserHomePage() {
               ownerName: data.ownerName,
               isShared: Boolean(data.isShared),
               sharedWith: data.sharedWith ?? [],
+              annotations: data.annotations || [],
             };
           }),
         );
@@ -748,6 +749,10 @@ function UserHomePage() {
               subtitle: data.subtitle,
               url: data.url,
               publicId: data.publicId,
+              resourceType: data.resourceType || "",
+              mimeType: data.mimeType || "",
+              originalFilename: data.originalFilename || data.title || "",
+              bytes: typeof data.bytes === "number" ? data.bytes : 0,
               themeId: data.themeId,
               themeLabel: data.themeLabel,
               createdAt: toMillis(data.createdAt),
@@ -755,6 +760,7 @@ function UserHomePage() {
               ownerName: data.ownerName,
               isShared: Boolean(data.isShared),
               sharedWith: data.sharedWith ?? [],
+              annotations: data.annotations || [],
               isSharedWithMe: true,
             };
           }),
@@ -974,12 +980,17 @@ function UserHomePage() {
               subtitle: data.subtitle,
               url: data.url,
               publicId: data.publicId,
+              resourceType: data.resourceType || "",
+              mimeType: data.mimeType || "",
+              originalFilename: data.originalFilename || data.title || "",
+              bytes: typeof data.bytes === "number" ? data.bytes : 0,
               themeId: "event",
               themeLabel: "Event",
               ownerUid: data.ownerUid,
               ownerName: data.ownerName,
               createdAt: toMillis(data.createdAt),
               isEventPhoto: true,
+              annotations: data.annotations || [],
             };
           }),
         );
@@ -1975,16 +1986,21 @@ function UserHomePage() {
 
     try {
       setEventUploading(true);
-      const { url, publicId } = await uploadToCloudinary(eventUploadFile);
+      const uploadResult = await uploadToCloudinary(eventUploadFile);
 
       await addDoc(collection(db, "eventPhotos"), {
         eventId: activeEvent.id,
         title,
         subtitle,
-        url,
-        publicId: publicId || "",
+        url: uploadResult.url,
+        publicId: uploadResult.publicId || "",
+        resourceType: uploadResult.resourceType || "",
+        mimeType: uploadResult.mimeType || eventUploadFile.type || "",
+        originalFilename: uploadResult.originalFilename || eventUploadFile.name || title,
+        bytes: typeof uploadResult.bytes === "number" ? uploadResult.bytes : eventUploadFile.size || 0,
         ownerUid: user.uid,
         ownerName: displayName,
+        annotations: [],
         createdAt: serverTimestamp(),
       });
 
@@ -1993,7 +2009,7 @@ function UserHomePage() {
         updatedAt: serverTimestamp(),
       };
       if (!activeEvent.coverPhotoUrl) {
-        eventUpdate.coverPhotoUrl = url;
+        eventUpdate.coverPhotoUrl = uploadResult.url;
       }
       await updateDoc(doc(db, "events", activeEvent.id), eventUpdate);
 
@@ -3127,10 +3143,11 @@ const handleAlbumDragEnd = async (event) => {
                       className="relative overflow-hidden rounded-3xl bg-white ring-2 ring-emerald-100 dark:bg-[#2a3655] dark:ring-emerald-900/50"
                     >
                       <div className="relative">
-                        <img
-                          src={image.url}
+                        <FilePreview
+                          file={image}
                           alt={image.title}
                           onClick={() => setDetailImage(image)}
+                          interactive
                           className="gallery-card-img"
                         />
                         {voteState.count > 0 && (

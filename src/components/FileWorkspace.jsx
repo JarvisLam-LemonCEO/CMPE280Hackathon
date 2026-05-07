@@ -149,7 +149,9 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
     try {
       setSaving(true);
 
-      await updateDoc(doc(db, "uploads", file.id), {
+      const annotationCollection = file.isEventPhoto ? "eventPhotos" : "uploads";
+
+      await updateDoc(doc(db, annotationCollection, file.id), {
         annotations,
         annotationUpdatedAt: serverTimestamp(),
       });
@@ -176,6 +178,65 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
     c.height = Math.max(1, r.height);
     if (old.width && old.height) c.getContext("2d").drawImage(old, 0, 0, c.width, c.height);
   };
+
+  const renderAnnotations = useCallback(
+    (items = annotations, videoTime = null) => {
+      const c = canvasRef.current;
+      if (!c) return;
+
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0, 0, c.width, c.height);
+
+      const visibleItems = items.filter((item) => {
+        if (isVid(file)) {
+          const t = Number(videoTime || 0);
+          return (
+            t >= Number(item.startTime || 0) &&
+            t <= Number(item.endTime || 999999)
+          );
+        }
+
+        if (isPpt(file)) {
+          return Number(item.slideIndex || 0) === Number(currentSlideIndex);
+        }
+
+        return true;
+      });
+
+      visibleItems.forEach((item) => {
+        ctx.strokeStyle = item.color;
+        ctx.fillStyle = item.color;
+        ctx.lineWidth = item.size;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        if (item.type === "pen") {
+          ctx.beginPath();
+          item.points.forEach((p, i) => {
+            if (i === 0) ctx.moveTo(p.x, p.y);
+            else ctx.lineTo(p.x, p.y);
+          });
+          ctx.stroke();
+        }
+
+        if (item.type === "rect") {
+          ctx.strokeRect(item.x, item.y, item.width, item.height);
+        }
+
+        if (item.type === "circle") {
+          ctx.beginPath();
+          ctx.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        if (item.type === "text") {
+          ctx.font = `${Math.max(14, item.size * 5)}px sans-serif`;
+          ctx.fillText(item.text, item.x, item.y);
+        }
+      });
+    },
+    [annotations, file, currentSlideIndex]
+  );
 
   useEffect(() => {
     const id = requestAnimationFrame(resize);
@@ -312,65 +373,6 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
     a.click();
   };
   const buttons = [["pen", PenTool, "Draw"], ["rect", Square, "Box"], ["circle", Circle, "Circle"], ["text", Type, "Text"]];
-
-  const renderAnnotations = useCallback(
-    (items = annotations, videoTime = null) => {
-      const c = canvasRef.current;
-      if (!c) return;
-
-      const ctx = c.getContext("2d");
-      ctx.clearRect(0, 0, c.width, c.height);
-
-      const visibleItems = items.filter((item) => {
-        if (isVid(file)) {
-          const t = Number(videoTime || 0);
-          return (
-            t >= Number(item.startTime || 0) &&
-            t <= Number(item.endTime || 999999)
-          );
-        }
-
-        if (isPpt(file)) {
-          return Number(item.slideIndex || 0) === Number(currentSlideIndex);
-        }
-
-        return true;
-      });
-
-      visibleItems.forEach((item) => {
-        ctx.strokeStyle = item.color;
-        ctx.fillStyle = item.color;
-        ctx.lineWidth = item.size;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-
-        if (item.type === "pen") {
-          ctx.beginPath();
-          item.points.forEach((p, i) => {
-            if (i === 0) ctx.moveTo(p.x, p.y);
-            else ctx.lineTo(p.x, p.y);
-          });
-          ctx.stroke();
-        }
-
-        if (item.type === "rect") {
-          ctx.strokeRect(item.x, item.y, item.width, item.height);
-        }
-
-        if (item.type === "circle") {
-          ctx.beginPath();
-          ctx.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-
-        if (item.type === "text") {
-          ctx.font = `${Math.max(14, item.size * 5)}px sans-serif`;
-          ctx.fillText(item.text, item.x, item.y);
-        }
-      });
-    },
-    [annotations, file, currentSlideIndex]
-  );
 
   return (
     <div className="flex h-full min-h-[620px] flex-col bg-slate-950">

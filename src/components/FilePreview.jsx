@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import FileWorkspace from "./FileWorkspace";
 import { isDoc, isPpt, supportsWorkspace, isImg, isVid, imageDisplayUrl } from "./fileTypeUtils";
 import {
@@ -106,7 +107,7 @@ export default function FilePreview({
     return <div className={`${heightClass} ${className}`.trim()}><FileWorkspace file={file} /></div>;
   }
 
-  if (showOpenLink && (isDoc(file) || isPpt(file))) {
+  if (showOpenLink && supportsWorkspace(file)) {
     return <div className={`${heightClass} ${className}`.trim()}><FileWorkspace file={file} /></div>;
   }
 
