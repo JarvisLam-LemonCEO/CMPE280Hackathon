@@ -1631,47 +1631,61 @@ function UserHomePage() {
 
     try {
       setEventSaving(true);
+      trackEvent("event_delete_start", {
+        photo_count: eventPhotos.filter((photo) => photo.eventId === activeEvent.id).length,
+      });
 
-      const votesSnap = await getDocs(
-        query(
-          collection(db, "eventVotes"),
-          where("eventId", "==", activeEvent.id),
-        ),
-      );
-      const invitesSnap = await getDocs(
-        query(
-          collection(db, "eventInvites"),
-          where("eventId", "==", activeEvent.id),
-        ),
-      );
+      await measureTrace("event_delete", async (activeTrace) => {
+        const votesSnap = await getDocs(
+          query(
+            collection(db, "eventVotes"),
+            where("eventId", "==", activeEvent.id),
+          ),
+        );
+        const invitesSnap = await getDocs(
+          query(
+            collection(db, "eventInvites"),
+            where("eventId", "==", activeEvent.id),
+          ),
+        );
 
-      const batch = writeBatch(db);
+        const photosToDelete = eventPhotos.filter(
+          (photo) => photo.eventId === activeEvent.id,
+        );
+        activeTrace?.putMetric("photo_count", photosToDelete.length);
+        activeTrace?.putMetric("vote_count", votesSnap.size);
+        activeTrace?.putMetric("invite_count", invitesSnap.size);
 
-      eventPhotos
-        .filter((photo) => photo.eventId === activeEvent.id)
-        .forEach((photo) => {
+        const batch = writeBatch(db);
+
+        photosToDelete.forEach((photo) => {
           batch.delete(doc(db, "eventPhotos", photo.id));
         });
 
-      votesSnap.forEach((voteDoc) => {
-        batch.delete(doc(db, "eventVotes", voteDoc.id));
+        votesSnap.forEach((voteDoc) => {
+          batch.delete(doc(db, "eventVotes", voteDoc.id));
+        });
+
+        invitesSnap.forEach((inviteDoc) => {
+          batch.delete(doc(db, "eventInvites", inviteDoc.id));
+        });
+
+        batch.delete(doc(db, "events", activeEvent.id));
+
+        await batch.commit();
       });
-
-      invitesSnap.forEach((inviteDoc) => {
-        batch.delete(doc(db, "eventInvites", inviteDoc.id));
-      });
-
-      batch.delete(doc(db, "events", activeEvent.id));
-
-      await batch.commit();
 
       setActiveEventId(null);
       setEventPhotos([]);
       setEventVotes({});
       setViewMode("events");
+      trackEvent("event_delete_success");
       showToast("Event vault deleted.", "success");
     } catch (err) {
       console.error("delete event failed", err);
+      trackEvent("event_delete_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       alert(err?.message || "Could not delete event vault.");
     } finally {
       setEventSaving(false);
@@ -1695,16 +1709,23 @@ function UserHomePage() {
 
     try {
       setEventSaving(true);
-      await updateDoc(doc(db, "events", activeEvent.id), {
-        name,
-        description,
-        updatedAt: serverTimestamp(),
+      trackEvent("event_update_start");
+      await measureTrace("event_update", async () => {
+        await updateDoc(doc(db, "events", activeEvent.id), {
+          name,
+          description,
+          updatedAt: serverTimestamp(),
+        });
       });
 
       setShowEditEventModal(false);
+      trackEvent("event_update_success");
       showToast("Event info updated.", "success");
     } catch (err) {
       console.error("edit event failed", err);
+      trackEvent("event_update_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       alert(err?.message || "Could not update event info.");
     } finally {
       setEventSaving(false);
@@ -1719,16 +1740,19 @@ function UserHomePage() {
 
     try {
       setEventSaving(true);
-      const ref = await addDoc(collection(db, "events"), {
-        ownerUid: user.uid,
-        ownerName: displayName,
-        memberUids: [user.uid],
-        name,
-        description,
-        coverPhotoUrl: "",
-        photoCount: 0,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+      trackEvent("event_create_start");
+      const ref = await measureTrace("event_create", async () => {
+        return addDoc(collection(db, "events"), {
+          ownerUid: user.uid,
+          ownerName: displayName,
+          memberUids: [user.uid],
+          name,
+          description,
+          coverPhotoUrl: "",
+          photoCount: 0,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
       });
 
       setNewEventName("");
@@ -1737,9 +1761,13 @@ function UserHomePage() {
       setViewMode("events");
       setActiveAlbumId(null);
       setActiveEventId(ref.id);
+      trackEvent("event_create_success");
       showToast("Event vault created.", "success");
     } catch (err) {
       console.error("create event failed", err);
+      trackEvent("event_create_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       alert(err?.message || "Could not create event vault.");
     } finally {
       setEventSaving(false);
@@ -1753,54 +1781,80 @@ function UserHomePage() {
 
     try {
       setEventSaving(true);
-      const recipientUid = await findUidByEmail(email);
-      if (!recipientUid) {
-        alert("No user found with that email.");
-        return;
-      }
-      if (recipientUid === user.uid) {
-        alert("You are already in this event vault.");
-        return;
-      }
-      if (activeEvent.memberUids?.includes(recipientUid)) {
-        alert("That user is already a member.");
-        return;
-      }
+      trackEvent("event_invite_start");
+      const result = await measureTrace("event_invite_send", async (activeTrace) => {
+        const recipientUid = await findUidByEmail(email);
+        if (!recipientUid) {
+          activeTrace?.putAttribute("result", "not_found");
+          return { ok: false, reason: "not_found" };
+        }
+        if (recipientUid === user.uid) {
+          activeTrace?.putAttribute("result", "self");
+          return { ok: false, reason: "self" };
+        }
+        if (activeEvent.memberUids?.includes(recipientUid)) {
+          activeTrace?.putAttribute("result", "already_member");
+          return { ok: false, reason: "already_member" };
+        }
 
-      const inviteRef = doc(
-        db,
-        "eventInvites",
-        eventInviteId(activeEvent.id, recipientUid),
-      );
-      const inviteSnap = await getDoc(inviteRef);
-      const existingStatus = inviteSnap.exists() ? inviteSnap.data()?.status : "";
+        const inviteRef = doc(
+          db,
+          "eventInvites",
+          eventInviteId(activeEvent.id, recipientUid),
+        );
+        const inviteSnap = await getDoc(inviteRef);
+        const existingStatus = inviteSnap.exists() ? inviteSnap.data()?.status : "";
 
-      if (existingStatus === "pending") {
-        alert("That user already has a pending invitation.");
-        return;
-      }
-      if (existingStatus === "accepted") {
-        alert("That user already accepted this invitation.");
-        return;
-      }
+        if (existingStatus === "pending") {
+          activeTrace?.putAttribute("result", "already_pending");
+          return { ok: false, reason: "already_pending" };
+        }
+        if (existingStatus === "accepted") {
+          activeTrace?.putAttribute("result", "already_accepted");
+          return { ok: false, reason: "already_accepted" };
+        }
 
-      await setDoc(inviteRef, {
-        eventId: activeEvent.id,
-        eventName: activeEvent.name,
-        eventDescription: activeEvent.description || "",
-        ownerUid: user.uid,
-        ownerName: displayName,
-        recipientUid,
-        recipientEmail: email.toLowerCase(),
-        status: "pending",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        await setDoc(inviteRef, {
+          eventId: activeEvent.id,
+          eventName: activeEvent.name,
+          eventDescription: activeEvent.description || "",
+          ownerUid: user.uid,
+          ownerName: displayName,
+          recipientUid,
+          recipientEmail: email.toLowerCase(),
+          status: "pending",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        activeTrace?.putAttribute("result", "sent");
+        return { ok: true };
       });
+
+      if (!result.ok) {
+        trackEvent("event_invite_blocked", { reason: result.reason });
+        if (result.reason === "not_found") {
+          alert("No user found with that email.");
+        } else if (result.reason === "self") {
+          alert("You are already in this event vault.");
+        } else if (result.reason === "already_member") {
+          alert("That user is already a member.");
+        } else if (result.reason === "already_pending") {
+          alert("That user already has a pending invitation.");
+        } else if (result.reason === "already_accepted") {
+          alert("That user already accepted this invitation.");
+        }
+        return;
+      }
+
       setInviteEmail("");
       setShowInviteEventModal(false);
+      trackEvent("event_invite_success");
       showToast("Invitation sent.", "success");
     } catch (err) {
       console.error("invite to event failed", err);
+      trackEvent("event_invite_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       alert(err?.message || "Could not invite user.");
     } finally {
       setEventSaving(false);
@@ -1813,27 +1867,32 @@ function UserHomePage() {
 
     try {
       setEventSaving(true);
+      trackEvent("event_invite_response_start", { response });
 
-      const inviteRef = doc(db, "eventInvites", invite.id);
+      await measureTrace("event_invite_response", async (activeTrace) => {
+        activeTrace?.putAttribute("response", response);
+        const inviteRef = doc(db, "eventInvites", invite.id);
 
-      if (isAccept) {
-        const eventRef = doc(db, "events", invite.eventId);
-        await updateDoc(eventRef, {
-          memberUids: arrayUnion(user.uid),
+        if (isAccept) {
+          const eventRef = doc(db, "events", invite.eventId);
+          await updateDoc(eventRef, {
+            memberUids: arrayUnion(user.uid),
+            updatedAt: serverTimestamp(),
+          });
+        }
+
+        await updateDoc(inviteRef, {
+          status: isAccept ? "accepted" : "rejected",
+          respondedAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-      }
-
-      await updateDoc(inviteRef, {
-        status: isAccept ? "accepted" : "rejected",
-        respondedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
       });
 
       showToast(
         isAccept ? "Event invitation accepted." : "Event invitation rejected.",
         "success",
       );
+      trackEvent("event_invite_response_success", { response });
       if (isAccept) {
         setViewMode("events");
         setActiveAlbumId(null);
@@ -1841,6 +1900,10 @@ function UserHomePage() {
       }
     } catch (err) {
       console.error("respond to event invite failed", err);
+      trackEvent("event_invite_response_failed", {
+        response,
+        error_code: err?.code || err?.name || "error",
+      });
       alert(err?.message || "Could not update invitation.");
     } finally {
       setEventSaving(false);
@@ -1922,18 +1985,28 @@ function UserHomePage() {
     }));
 
     try {
-      if (already) {
-        await deleteDoc(ref);
-      } else {
-        await setDoc(ref, {
-          eventId: activeEvent.id,
-          photoId,
-          uid: user.uid,
-          createdAt: serverTimestamp(),
-        });
-      }
+      const action = already ? "unvote" : "vote";
+      trackEvent("event_photo_vote_start", { action });
+      await measureTrace("event_photo_vote_toggle", async (activeTrace) => {
+        activeTrace?.putAttribute("action", action);
+        if (already) {
+          await deleteDoc(ref);
+        } else {
+          await setDoc(ref, {
+            eventId: activeEvent.id,
+            photoId,
+            uid: user.uid,
+            createdAt: serverTimestamp(),
+          });
+        }
+      });
+      trackEvent("event_photo_vote_success", { action });
     } catch (err) {
       console.error("toggle event vote failed", err);
+      trackEvent("event_photo_vote_failed", {
+        action: already ? "unvote" : "vote",
+        error_code: err?.code || err?.name || "error",
+      });
       setEventVotes((prev) => ({
         ...prev,
         [photoId]: {
@@ -1958,42 +2031,52 @@ function UserHomePage() {
 
     try {
       setEventSaving(true);
+      trackEvent("event_photo_delete_start");
 
-      const votesSnap = await getDocs(
-        query(
-          collection(db, "eventVotes"),
-          where("photoId", "==", image.id),
-        ),
-      );
+      await measureTrace("event_photo_delete", async (activeTrace) => {
+        const votesSnap = await getDocs(
+          query(
+            collection(db, "eventVotes"),
+            where("photoId", "==", image.id),
+          ),
+        );
 
-      const remainingPhotos = eventPhotos.filter(
-        (photo) => photo.id !== image.id,
-      );
-      const nextCoverUrl =
-        activeEvent.coverPhotoUrl === image.url
-          ? remainingPhotos[0]?.url || ""
-          : activeEvent.coverPhotoUrl || "";
+        const remainingPhotos = eventPhotos.filter(
+          (photo) => photo.id !== image.id,
+        );
+        const nextCoverUrl =
+          activeEvent.coverPhotoUrl === image.url
+            ? remainingPhotos[0]?.url || ""
+            : activeEvent.coverPhotoUrl || "";
 
-      const batch = writeBatch(db);
-      batch.delete(doc(db, "eventPhotos", image.id));
+        activeTrace?.putMetric("vote_count", votesSnap.size);
+        activeTrace?.putMetric("remaining_photo_count", remainingPhotos.length);
 
-      votesSnap.forEach((voteDoc) => {
-        batch.delete(doc(db, "eventVotes", voteDoc.id));
+        const batch = writeBatch(db);
+        batch.delete(doc(db, "eventPhotos", image.id));
+
+        votesSnap.forEach((voteDoc) => {
+          batch.delete(doc(db, "eventVotes", voteDoc.id));
+        });
+
+        batch.update(doc(db, "events", activeEvent.id), {
+          photoCount: increment(-1),
+          coverPhotoUrl: nextCoverUrl,
+          lastDeletedPhotoId: image.id,
+          updatedAt: serverTimestamp(),
+        });
+
+        await batch.commit();
       });
-
-      batch.update(doc(db, "events", activeEvent.id), {
-        photoCount: increment(-1),
-        coverPhotoUrl: nextCoverUrl,
-        lastDeletedPhotoId: image.id,
-        updatedAt: serverTimestamp(),
-      });
-
-      await batch.commit();
 
       if (detailImage?.id === image.id) setDetailImage(null);
+      trackEvent("event_photo_delete_success");
       showToast("Event photo deleted.", "success");
     } catch (err) {
       console.error("delete event photo failed", err);
+      trackEvent("event_photo_delete_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       alert(err?.message || "Could not delete event photo.");
     } finally {
       setEventSaving(false);
@@ -2022,10 +2105,13 @@ function UserHomePage() {
 
     try {
       setEventPhotoEditing(true);
-      await updateDoc(doc(db, "eventPhotos", editingEventPhotoId), {
-        title,
-        subtitle,
-        updatedAt: serverTimestamp(),
+      trackEvent("event_photo_update_start");
+      await measureTrace("event_photo_update", async () => {
+        await updateDoc(doc(db, "eventPhotos", editingEventPhotoId), {
+          title,
+          subtitle,
+          updatedAt: serverTimestamp(),
+        });
       });
 
       setDetailImage((prev) =>
@@ -2042,9 +2128,13 @@ function UserHomePage() {
       setEditingEventPhotoId("");
       setEditTitle("");
       setEditDescription("");
+      trackEvent("event_photo_update_success");
       showToast("Event photo updated.", "success");
     } catch (err) {
       console.error("edit event photo failed", err);
+      trackEvent("event_photo_update_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       alert(err?.message || "Could not update event photo.");
     } finally {
       setEventPhotoEditing(false);
