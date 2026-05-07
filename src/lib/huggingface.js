@@ -1,5 +1,5 @@
 import { InferenceClient } from "@huggingface/inference";
-import { startTrace } from "./telemetry";
+import { startTrace, trackEvent, trackException } from "./telemetry";
 
 const HF_API_KEY = import.meta.env.VITE_HF_API_KEY;
 const HF_MODEL = "black-forest-labs/FLUX.1-Kontext-dev";
@@ -98,6 +98,11 @@ export async function generateStyledImage(imageFile, styleKey) {
       source_bytes: imageFile?.size || 0,
     },
   });
+  trackEvent("ai_photo_generate_start", {
+    provider: HF_PROVIDER,
+    source_type: sourceType,
+    style_key: styleKey,
+  });
 
   try {
     const imageInput =
@@ -118,10 +123,21 @@ export async function generateStyledImage(imageFile, styleKey) {
     const outputBlob = result instanceof Blob ? result : new Blob([result]);
     generationTrace?.putAttribute("status", "success");
     generationTrace?.putMetric("output_bytes", outputBlob.size || 0);
+    trackEvent("ai_photo_generate_success", {
+      provider: HF_PROVIDER,
+      style_key: styleKey,
+      output_bytes: outputBlob.size || 0,
+    });
     return outputBlob;
   } catch (err) {
     generationTrace?.putAttribute("status", "error");
     generationTrace?.putAttribute("error_code", err?.code || err?.name || "error");
+    trackEvent("ai_photo_generate_failed", {
+      provider: HF_PROVIDER,
+      style_key: styleKey,
+      error_code: err?.code || err?.name || "error",
+    });
+    trackException(err, { area: "ai_photo_generate", provider: HF_PROVIDER });
     console.error("Style generation failed:", err);
     throw new Error(
       `Failed to generate styled image: ${err.message || "Unknown error"}`

@@ -108,19 +108,30 @@ src/
 npm install
 ```
 
-**2. Start development server**
+**2. Configure Firebase telemetry**
+
+Add your Firebase web app measurement ID locally and in Vercel:
+
+```bash
+VITE_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
+```
+
+Firebase Performance Monitoring uses the existing Firebase app config. Google
+Analytics events require `VITE_FIREBASE_MEASUREMENT_ID`.
+
+**3. Start development server**
 
 ```bash
 npm run dev
 ```
 
-**3. Open in browser**
+**4. Open in browser**
 
 ```
 http://localhost:5173/
 ```
 
-**4. Build for production**
+**5. Build for production**
 
 ```bash
 npm run build

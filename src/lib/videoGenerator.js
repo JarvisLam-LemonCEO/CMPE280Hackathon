@@ -1,7 +1,7 @@
 // Generate a slideshow video in the BROWSER using Canvas + MediaRecorder,
 // then upload the resulting blob to Cloudinary.
 
-import { startTrace } from "./telemetry";
+import { startTrace, trackEvent, trackException } from "./telemetry";
 
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
@@ -59,6 +59,10 @@ async function uploadVideoBlobToCloudinary(blob) {
     attributes: { file_type: fileType },
     metrics: { file_size_bytes: fileSize },
   });
+  trackEvent("cloudinary_video_upload_start", {
+    file_type: fileType,
+    file_size_bytes: fileSize,
+  });
 
   const form = new FormData();
   form.append("file", blob, "slideshow");
@@ -76,10 +80,20 @@ async function uploadVideoBlobToCloudinary(blob) {
     const data = await res.json();
     uploadTrace?.putAttribute("status", "success");
     uploadTrace?.putMetric("response_bytes", data.bytes || 0);
+    trackEvent("cloudinary_video_upload_success", {
+      file_type: fileType,
+      file_size_bytes: fileSize,
+      response_bytes: data.bytes || 0,
+    });
     return { videoUrl: data.secure_url, publicId: data.public_id };
   } catch (err) {
     uploadTrace?.putAttribute("status", "error");
     uploadTrace?.putAttribute("error_code", err?.code || err?.name || "error");
+    trackEvent("cloudinary_video_upload_failed", {
+      file_type: fileType,
+      error_code: err?.code || err?.name || "error",
+    });
+    trackException(err, { area: "cloudinary_video_upload" });
     throw err;
   } finally {
     uploadTrace?.stop();
@@ -147,6 +161,12 @@ export async function generateAlbumVideo(
       duration_sec: totalDurationSec,
       transition_count: perPairTransitions.length,
     },
+  });
+  trackEvent("video_generate_start", {
+    image_count: usable.length,
+    seconds_per_image: secondsPerImage,
+    duration_sec: totalDurationSec,
+    aspect_ratio: aspectKey,
   });
 
   try {
@@ -358,10 +378,23 @@ export async function generateAlbumVideo(
 
   totalTrace?.putAttribute("status", "success");
   totalTrace?.putMetric("output_bytes", blob.size || 0);
+  trackEvent("video_generate_success", {
+    image_count: usable.length,
+    duration_sec: totalDurationSec,
+    aspect_ratio: aspectKey,
+    output_bytes: blob.size || 0,
+  });
   return { videoUrl, publicId, durationSec: totalDurationSec };
   } catch (err) {
     totalTrace?.putAttribute("status", "error");
     totalTrace?.putAttribute("error_code", err?.code || err?.name || "error");
+    trackEvent("video_generate_failed", {
+      image_count: usable.length,
+      duration_sec: totalDurationSec,
+      aspect_ratio: aspectKey,
+      error_code: err?.code || err?.name || "error",
+    });
+    trackException(err, { area: "generate_album_video" });
     throw err;
   } finally {
     totalTrace?.stop();

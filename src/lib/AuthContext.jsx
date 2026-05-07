@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
+import { setTelemetryUser, trackEvent } from "./telemetry";
 
 const AuthContext = createContext({ user: null, profile: null, loading: true });
 
@@ -14,6 +15,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       setUser(fbUser);
+      setTelemetryUser(fbUser);
       if (!fbUser) setProfile(null);
       setLoading(false);
     });
@@ -39,7 +41,10 @@ export function AuthProvider({ children }) {
     return unsub;
   }, [user]);
 
-  const logout = () => signOut(auth);
+  const logout = async () => {
+    await signOut(auth);
+    trackEvent("logout");
+  };
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, logout }}>

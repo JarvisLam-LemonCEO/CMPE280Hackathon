@@ -12,7 +12,7 @@ import { allThemeImages } from "../data/galleryData";
 import { db } from "../lib/firebase";
 import { useAuth } from "../lib/AuthContext";
 import { addSharedToGallery } from "../lib/sharing";
-import { measureTrace } from "../lib/telemetry";
+import { measureTrace, trackEvent } from "../lib/telemetry";
 
 const resolveSharedImageLink = (imageId) =>
   `${window.location.origin}/shared/${encodeURIComponent(imageId)}`;
@@ -39,6 +39,10 @@ export default function SharedImagePage() {
       if (themeImage) {
         setImage(themeImage);
         setLoading(false);
+        trackEvent("shared_image_view", {
+          source: "theme",
+          content_type: "image",
+        });
         return;
       }
 
@@ -52,11 +56,19 @@ export default function SharedImagePage() {
 
         if (snap.exists() && snap.data()?.isShared) {
           setImage({ id: snap.id, ...snap.data() });
+          trackEvent("shared_image_view", {
+            source: "public_link",
+            content_type: "image",
+          });
         } else {
           setImage(null);
+          trackEvent("shared_image_unavailable", { source: "public_link" });
         }
       } catch (err) {
         console.error("shared image load failed", err);
+        trackEvent("shared_image_load_failed", {
+          error_code: err?.code || err?.name || "error",
+        });
         if (active) setImage(null);
       } finally {
         if (active) setLoading(false);
@@ -77,6 +89,7 @@ export default function SharedImagePage() {
   );
 
   const handleSignInToAdd = () => {
+    trackEvent("shared_image_signin_click", { content_type: "image" });
     navigate(
       `/auth?mode=login&next=${encodeURIComponent(`/shared/${imageId}`)}`,
     );
@@ -86,6 +99,7 @@ export default function SharedImagePage() {
     if (!user || !image?.id || isThemeImage) return;
     setAddState("loading");
     setAddError("");
+    trackEvent("shared_gallery_add_start", { content_type: "image" });
     try {
       const result = await addSharedToGallery({
         uploadId: image.id,
@@ -100,12 +114,19 @@ export default function SharedImagePage() {
           setAddError("This photo is no longer available.");
         }
         setAddState("error");
+        trackEvent("shared_gallery_add_blocked", {
+          reason: result.reason || "unknown",
+        });
         return;
       }
       setAddState("added");
+      trackEvent("shared_gallery_add_success", { content_type: "image" });
       navigate("/user-home");
     } catch (err) {
       console.error("add shared to gallery failed", err);
+      trackEvent("shared_gallery_add_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       setAddError("Could not add to your gallery.");
       setAddState("error");
     }
@@ -115,9 +136,13 @@ export default function SharedImagePage() {
     try {
       await navigator.clipboard.writeText(resolveSharedImageLink(imageId));
       setCopyState("copied");
+      trackEvent("shared_link_copy", { source: "shared_page" });
       window.setTimeout(() => setCopyState("idle"), 2000);
     } catch (err) {
       console.error("copy shared link failed", err);
+      trackEvent("shared_link_copy_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       setCopyState("error");
       window.setTimeout(() => setCopyState("idle"), 2000);
     }

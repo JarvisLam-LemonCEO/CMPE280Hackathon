@@ -6,7 +6,7 @@ import { ThemeToggle } from "../ThemeContext";
 import { useAuth } from "../lib/AuthContext";
 import { auth, db } from "../lib/firebase";
 import { uploadToCloudinary } from "../lib/cloudinary";
-import { measureTrace } from "../lib/telemetry";
+import { measureTrace, trackEvent } from "../lib/telemetry";
 
 export default function UserProfile() {
   const navigate = useNavigate();
@@ -62,6 +62,10 @@ export default function UserProfile() {
     if (!selectedFile || !user) return;
     try {
       setUploadingPicture(true);
+      trackEvent("profile_photo_update_start", {
+        file_type: selectedFile.type || "unknown",
+        file_size_bytes: selectedFile.size || 0,
+      });
       await measureTrace("profile_photo_update", async () => {
         const { url } = await uploadToCloudinary(selectedFile);
         await updateDoc(doc(db, "users", user.uid), { photoURL: url });
@@ -69,9 +73,13 @@ export default function UserProfile() {
         metrics: { file_size_bytes: selectedFile.size || 0 },
       });
       setSelectedFile(null);
+      trackEvent("profile_photo_update_success");
       alert("Profile picture updated.");
     } catch (err) {
       console.error("profile picture upload failed", err);
+      trackEvent("profile_photo_update_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       alert(err?.message || "Could not upload profile picture.");
     } finally {
       setUploadingPicture(false);
@@ -85,9 +93,13 @@ export default function UserProfile() {
         await updateDoc(doc(db, "users", user.uid), { photoURL: "" });
       });
       setSelectedFile(null);
+      trackEvent("profile_photo_remove");
       alert("Profile photo removed.");
     } catch (err) {
       console.error("remove profile photo failed", err);
+      trackEvent("profile_photo_remove_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       alert("Could not remove profile photo.");
     }
   };
@@ -104,9 +116,13 @@ export default function UserProfile() {
       await measureTrace("profile_name_update", async () => {
         await updateDoc(doc(db, "users", user.uid), { displayName: trimmed });
       });
+      trackEvent("profile_name_update");
       alert("Display name updated.");
     } catch (err) {
       console.error("update display name failed", err);
+      trackEvent("profile_name_update_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       alert("Could not update display name.");
     } finally {
       setSavingDisplayName(false);
@@ -143,9 +159,13 @@ export default function UserProfile() {
         });
       });
       setShowEmailModal(false);
+      trackEvent("profile_email_update");
       alert("Email changed successfully.");
     } catch (err) {
       console.error("change email failed", err);
+      trackEvent("profile_email_update_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       if (err?.code === "auth/requires-recent-login") {
         alert(
           "For security, please log out and log back in before changing your email.",
@@ -188,9 +208,13 @@ export default function UserProfile() {
       setNewPassword("");
       setConfirmNewPassword("");
       setShowPasswordModal(false);
+      trackEvent("profile_password_update");
       alert("Password changed successfully.");
     } catch (err) {
       console.error("change password failed", err);
+      trackEvent("profile_password_update_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       if (err?.code === "auth/requires-recent-login") {
         alert(
           "For security, please log out and log back in before changing your password.",
@@ -211,6 +235,7 @@ export default function UserProfile() {
     // log the user out as the safest behavior.
     try {
       await logout();
+      trackEvent("account_delete_requested");
     } catch (err) {
       console.error("logout failed during delete", err);
     }

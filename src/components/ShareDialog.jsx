@@ -6,6 +6,7 @@ import {
   setIsShared,
   getUsersByUids,
 } from "../lib/sharing";
+import { trackEvent } from "../lib/telemetry";
 
 function Avatar({ user, size = 32 }) {
   const initial = (
@@ -103,8 +104,13 @@ export default function ShareDialog({
       setStatusMsg(null);
       setAccessOpen(false);
       setCopied(false);
+    } else {
+      trackEvent("share_dialog_open", {
+        content_type: "image",
+        is_owner: isOwner,
+      });
     }
-  }, [open, upload?.id]);
+  }, [open, upload?.id, isOwner]);
 
   // Load owner + viewer user docs
   useEffect(() => {
@@ -158,6 +164,7 @@ export default function ShareDialog({
 
     setSubmitting(true);
     setStatusMsg(null);
+    trackEvent("share_email_start", { content_type: "image" });
 
     try {
       const result = await shareWithEmail({
@@ -177,6 +184,10 @@ export default function ShareDialog({
                 ? "Already shared with that user"
                 : "Could not share photo";
         setStatusMsg({ kind: "error", text });
+        trackEvent("share_email_blocked", {
+          reason,
+          content_type: "image",
+        });
         return;
       }
 
@@ -195,11 +206,18 @@ export default function ShareDialog({
 
       setEmailValue("");
       setStatusMsg({ kind: "success", text: "Shared!" });
+      trackEvent("share", {
+        method: "email",
+        content_type: "image",
+      });
       window.setTimeout(() => {
         setStatusMsg((cur) => (cur && cur.kind === "success" ? null : cur));
       }, 2000);
     } catch (err) {
       console.error("shareWithEmail failed", err);
+      trackEvent("share_email_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       setStatusMsg({ kind: "error", text: "Could not share photo" });
     } finally {
       setSubmitting(false);
@@ -211,8 +229,12 @@ export default function ShareDialog({
     try {
       await unshareWithUser(upload.id, uid);
       setPeople((prev) => prev.filter((p) => p.uid !== uid));
+      trackEvent("share_remove_viewer", { content_type: "image" });
     } catch (err) {
       console.error("unshareWithUser failed", err);
+      trackEvent("share_remove_viewer_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
     }
   };
 
@@ -222,8 +244,15 @@ export default function ShareDialog({
     if (Boolean(upload.isShared) === Boolean(nextIsShared)) return;
     try {
       await setIsShared(upload.id, Boolean(nextIsShared));
+      trackEvent("share_access_update", {
+        content_type: "image",
+        is_shared: Boolean(nextIsShared),
+      });
     } catch (err) {
       console.error("setIsShared failed", err);
+      trackEvent("share_access_update_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
     }
   };
 
@@ -232,9 +261,13 @@ export default function ShareDialog({
     try {
       await navigator.clipboard.writeText(link);
       setCopied(true);
+      trackEvent("share_link_copy", { content_type: "image" });
       window.setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("copy link failed", err);
+      trackEvent("share_link_copy_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
     }
   };
 

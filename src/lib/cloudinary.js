@@ -1,4 +1,4 @@
-import { startTrace } from "./telemetry";
+import { startTrace, trackEvent, trackException } from "./telemetry";
 
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
@@ -11,6 +11,10 @@ export async function uploadToCloudinary(file) {
   const uploadTrace = startTrace("cloudinary_image_upload", {
     attributes: { file_type: file?.type || "unknown" },
     metrics: { file_size_bytes: file?.size || 0 },
+  });
+  trackEvent("cloudinary_image_upload_start", {
+    file_type: file?.type || "unknown",
+    file_size_bytes: file?.size || 0,
   });
 
   const form = new FormData();
@@ -29,10 +33,20 @@ export async function uploadToCloudinary(file) {
     const data = await res.json();
     uploadTrace?.putAttribute("status", "success");
     uploadTrace?.putMetric("response_bytes", data.bytes || 0);
+    trackEvent("cloudinary_image_upload_success", {
+      file_type: file?.type || "unknown",
+      file_size_bytes: file?.size || 0,
+      response_bytes: data.bytes || 0,
+    });
     return { url: data.secure_url, publicId: data.public_id };
   } catch (err) {
     uploadTrace?.putAttribute("status", "error");
     uploadTrace?.putAttribute("error_code", err?.code || err?.name || "error");
+    trackEvent("cloudinary_image_upload_failed", {
+      file_type: file?.type || "unknown",
+      error_code: err?.code || err?.name || "error",
+    });
+    trackException(err, { area: "cloudinary_image_upload" });
     throw err;
   } finally {
     uploadTrace?.stop();

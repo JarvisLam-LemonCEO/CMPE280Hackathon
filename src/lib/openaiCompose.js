@@ -6,7 +6,7 @@
 // at the photos.
 
 import OpenAI from "openai";
-import { startTrace } from "./telemetry";
+import { startTrace, trackEvent, trackException } from "./telemetry";
 
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 
@@ -132,6 +132,7 @@ Rules:
     attributes: { model },
     metrics: { photo_count: photos.length },
   });
+  trackEvent("ai_compose_video_start", { photo_count: photos.length });
 
   try {
     const response = await client.chat.completions.create({
@@ -189,6 +190,12 @@ Rules:
     composeTrace?.putAttribute("aspect_ratio", aspectRatio);
     composeTrace?.putMetric("seconds_per_image", cappedSeconds);
     composeTrace?.putMetric("transition_count", transitions.length);
+    trackEvent("ai_compose_video_success", {
+      photo_count: photos.length,
+      seconds_per_image: cappedSeconds,
+      aspect_ratio: aspectRatio,
+      transition_count: transitions.length,
+    });
 
     return {
       order: validOrder,
@@ -202,6 +209,11 @@ Rules:
   } catch (err) {
     composeTrace?.putAttribute("status", "error");
     composeTrace?.putAttribute("error_code", err?.code || err?.name || "error");
+    trackEvent("ai_compose_video_failed", {
+      photo_count: photos.length,
+      error_code: err?.code || err?.name || "error",
+    });
+    trackException(err, { area: "ai_compose_video" });
     throw err;
   } finally {
     composeTrace?.stop();

@@ -7,7 +7,7 @@ import {
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import { ThemeToggle } from "../ThemeContext";
-import { measureTrace } from "../lib/telemetry";
+import { measureTrace, trackEvent } from "../lib/telemetry";
 
 
 function friendlyAuthError(code) {
@@ -76,6 +76,7 @@ export default function AuthPage() {
 
     try {
       setSubmitting(true);
+      trackEvent("login_attempt", { method: "password" });
       await measureTrace("auth_login", async () => {
         await signInWithEmailAndPassword(
           auth,
@@ -85,8 +86,13 @@ export default function AuthPage() {
       }, {
         attributes: { method: "password" },
       });
+      trackEvent("login", { method: "password" });
       navigate(nextPath || "/user-home");
     } catch (err) {
+      trackEvent("login_failed", {
+        method: "password",
+        error_code: err?.code || "unknown",
+      });
       alert(friendlyAuthError(err?.code));
     } finally {
       setSubmitting(false);
@@ -108,6 +114,7 @@ export default function AuthPage() {
 
     try {
       setSubmitting(true);
+      trackEvent("sign_up_attempt", { method: "password" });
       await measureTrace("auth_sign_up", async () => {
         await createUserWithEmailAndPassword(
           auth,
@@ -117,8 +124,13 @@ export default function AuthPage() {
       }, {
         attributes: { method: "password" },
       });
+      trackEvent("sign_up", { method: "password" });
       navigate(nextPath || "/user-home");
     } catch (err) {
+      trackEvent("sign_up_failed", {
+        method: "password",
+        error_code: err?.code || "unknown",
+      });
       alert(friendlyAuthError(err?.code));
     } finally {
       setSubmitting(false);

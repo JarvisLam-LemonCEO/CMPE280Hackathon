@@ -20,7 +20,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { db } from "../lib/firebase";
 import { generateAlbumVideo } from "../lib/videoGenerator";
 import { aiCompose, isOpenAIConfigured } from "../lib/openaiCompose";
-import { measureTrace } from "../lib/telemetry";
+import { measureTrace, trackEvent } from "../lib/telemetry";
 
 const SECONDS_OPTIONS = [2, 3, 5];
 const ASPECT_OPTIONS = [
@@ -173,6 +173,11 @@ export default function VideoGeneratorModal({
       setAspect(result.aspectRatio);
       setAiTitle(result.title);
       setAiReasoning(result.reasoning);
+      trackEvent("ai_compose_video_applied", {
+        photo_count: orderedPhotos.length,
+        seconds_per_image: result.secondsPerImage,
+        aspect_ratio: result.aspectRatio,
+      });
     } catch (err) {
       console.error("AI compose failed", err);
       setAiError(err?.message || "AI composition failed.");
@@ -195,6 +200,7 @@ export default function VideoGeneratorModal({
       const oldIndex = items.findIndex((p) => (p.id || p.publicId) === active.id);
       const newIndex = items.findIndex((p) => (p.id || p.publicId) === over.id);
       if (oldIndex < 0 || newIndex < 0) return items;
+      trackEvent("video_photo_reorder", { photo_count: items.length });
       return arrayMove(items, oldIndex, newIndex);
     });
   };
@@ -204,6 +210,12 @@ export default function VideoGeneratorModal({
     setErrorMsg("");
     setResult(null);
     setProgress({ stage: "downloading", current: 0, total: photoCount });
+    trackEvent("video_generate_click", {
+      photo_count: photoCount,
+      seconds_per_image: seconds,
+      aspect_ratio: aspect,
+      duration_sec: estimatedSec,
+    });
     try {
       const out = await generateAlbumVideo(
         {
@@ -229,6 +241,10 @@ export default function VideoGeneratorModal({
   const handleSaveToGallery = async () => {
     if (!result || !ownerUid || savingDoc || savedId) return;
     setSavingDoc(true);
+    trackEvent("save_generated_video_start", {
+      duration_sec: result.durationSec,
+      photo_count: orderedPhotos.length,
+    });
     try {
       const ref = await measureTrace("save_generated_video", async () => {
         return addDoc(collection(db, "videos"), {
@@ -251,8 +267,15 @@ export default function VideoGeneratorModal({
         },
       });
       setSavedId(ref.id);
+      trackEvent("save_generated_video_success", {
+        duration_sec: result.durationSec,
+        photo_count: orderedPhotos.length,
+      });
     } catch (err) {
       console.error("save video failed", err);
+      trackEvent("save_generated_video_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       setErrorMsg(err?.message || "Could not save the video to your gallery.");
     } finally {
       setSavingDoc(false);

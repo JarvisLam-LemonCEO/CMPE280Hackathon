@@ -26,7 +26,7 @@ import { db } from "../lib/firebase";
 import { uploadToCloudinary } from "../lib/cloudinary";
 import { generateStyledImage, AI_STYLES, isHFConfigured } from "../lib/huggingface";
 import { findUidByEmail, getUsersByUids, removeFromMyGallery } from "../lib/sharing";
-import { measureTrace } from "../lib/telemetry";
+import { measureTrace, trackEvent } from "../lib/telemetry";
 import ShareDialog from "../components/ShareDialog";
 import VideoGeneratorModal from "../components/VideoGeneratorModal";
 import {
@@ -1215,8 +1215,15 @@ function UserHomePage() {
           createdAt: serverTimestamp(),
         });
       }
+      trackEvent("like_toggle", {
+        action: already ? "unlike" : "like",
+      });
     } catch (err) {
       console.error("toggleLike failed", err);
+      trackEvent("like_toggle_failed", {
+        action: already ? "unlike" : "like",
+        error_code: err?.code || err?.name || "error",
+      });
       setLikesMap((prev) => ({ ...prev, [imageId]: already }));
     }
   };
@@ -1232,8 +1239,12 @@ function UserHomePage() {
         text,
         createdAt: Timestamp.now(),
       });
+      trackEvent("comment_add", { content_type: "image" });
     } catch (err) {
       console.error("addComment failed", err);
+      trackEvent("comment_add_failed", {
+        error_code: err?.code || err?.name || "error",
+      });
       alert("Could not post comment.");
     }
   };
@@ -1320,6 +1331,7 @@ function UserHomePage() {
     }
 
     setShowAIEditModal(true);
+    trackEvent("ai_edit_open", { style_key: aiStyle || "unset" });
   };
 
   const generateStylePreview = async () => {
@@ -1330,6 +1342,7 @@ function UserHomePage() {
 
     try {
       setAIGenerating(true);
+      trackEvent("ai_edit_preview_start", { style_key: aiStyle });
 
       const styledBlob = await generateStyledImage(selectedEditableUpload.url, aiStyle);
       const styledURL = URL.createObjectURL(styledBlob);
@@ -1340,8 +1353,16 @@ function UserHomePage() {
 
       setAIPreviewBlob(styledBlob);
       setAIPreviewUrl(styledURL);
+      trackEvent("ai_edit_preview_success", {
+        style_key: aiStyle,
+        output_bytes: styledBlob.size || 0,
+      });
     } catch (err) {
       console.error("Style generation failed:", err);
+      trackEvent("ai_edit_preview_failed", {
+        style_key: aiStyle,
+        error_code: err?.code || err?.name || "error",
+      });
       alert(err?.message || "Failed to generate styled image. Please try again.");
       setAIPreviewUrl("");
       setAIPreviewBlob(null);
@@ -1363,6 +1384,10 @@ function UserHomePage() {
 
     try {
       setAIApplying(true);
+      trackEvent("ai_edit_apply_start", {
+        style_key: aiStyle,
+        output_bytes: aiPreviewBlob.size || 0,
+      });
 
       await measureTrace("ai_photo_apply_total", async () => {
         const originalUrl = selectedEditableUpload.originalUrl || selectedEditableUpload.url;
@@ -1387,8 +1412,13 @@ function UserHomePage() {
       setAIPreviewUrl("");
       setAIPreviewBlob(null);
       setSelectedIds(new Set());
+      trackEvent("ai_edit_apply_success", { style_key: aiStyle });
     } catch (err) {
       console.error("apply ai edit failed", err);
+      trackEvent("ai_edit_apply_failed", {
+        style_key: aiStyle,
+        error_code: err?.code || err?.name || "error",
+      });
       alert(err?.message || "Could not apply AI edit.");
     } finally {
       setAIApplying(false);
@@ -1405,6 +1435,11 @@ function UserHomePage() {
 
     try {
       setUploading(true);
+      trackEvent("image_upload_start", {
+        file_type: uploadFile.type || "unknown",
+        file_size_bytes: uploadFile.size || 0,
+        theme_id: uploadTheme,
+      });
 
       const selectedTheme = themeById[uploadTheme];
 
@@ -1434,8 +1469,17 @@ function UserHomePage() {
       setUploadFile(null);
       setUploadTheme(themeData[0]?.id || "nature");
       setShowUploadModal(false);
+      trackEvent("image_upload_success", {
+        file_type: uploadFile.type || "unknown",
+        file_size_bytes: uploadFile.size || 0,
+        theme_id: uploadTheme,
+      });
     } catch (err) {
       console.error("upload submit failed", err);
+      trackEvent("image_upload_failed", {
+        file_type: uploadFile.type || "unknown",
+        error_code: err?.code || err?.name || "error",
+      });
       alert(err?.message || "Could not upload image.");
     } finally {
       setUploading(false);
@@ -1812,6 +1856,10 @@ function UserHomePage() {
 
     try {
       setEventUploading(true);
+      trackEvent("event_photo_upload_start", {
+        file_type: eventUploadFile.type || "unknown",
+        file_size_bytes: eventUploadFile.size || 0,
+      });
       await measureTrace("event_photo_upload_total", async () => {
         const { url, publicId } = await uploadToCloudinary(eventUploadFile);
 
@@ -1842,9 +1890,17 @@ function UserHomePage() {
       setEventUploadDescription("");
       setEventUploadFile(null);
       setShowEventUploadModal(false);
+      trackEvent("event_photo_upload_success", {
+        file_type: eventUploadFile.type || "unknown",
+        file_size_bytes: eventUploadFile.size || 0,
+      });
       showToast("Photo added to event vault.", "success");
     } catch (err) {
       console.error("event upload failed", err);
+      trackEvent("event_photo_upload_failed", {
+        file_type: eventUploadFile.type || "unknown",
+        error_code: err?.code || err?.name || "error",
+      });
       alert(err?.message || "Could not upload event photo.");
     } finally {
       setEventUploading(false);

@@ -5,11 +5,13 @@ import AuthPage from "./pages/AuthPages";
 import UserHomePage from "./pages/UserHomePage";
 import UserProfile from "./pages/UserProfile";
 import SharedImagePage from "./pages/SharedImagePage";
+import RouteTelemetry from "./components/RouteTelemetry";
 
 function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
+        <RouteTelemetry />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/auth" element={<AuthPage />} />
