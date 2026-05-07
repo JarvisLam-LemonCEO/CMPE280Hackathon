@@ -427,7 +427,16 @@ const PhotoDetailModal = ({
         )}
 
         <div className="photo-modal-image-panel">
-          <img src={image.url} alt={image.title} className="photo-modal-img" />
+          {image.isGeneratedVideo ? (
+            <video
+              src={image.url}
+              controls
+              autoPlay
+              className="h-80 w-full bg-black object-contain lg:h-full"
+            />
+          ) : (
+            <img src={image.url} alt={image.title} className="photo-modal-img" />
+          )}
         </div>
 
         <div className="photo-modal-info-panel">
@@ -486,6 +495,7 @@ function UserHomePage() {
   const [activeTheme, setActiveTheme] = useState("all");
   const [uploadedImages, setUploadedImages] = useState([]);
   const [sharedWithMeImages, setSharedWithMeImages] = useState([]);
+  const [savedVideos, setSavedVideos] = useState([]);
   const [shareDialogUpload, setShareDialogUpload] = useState(null);
   const [toast, setToast] = useState(null);
   const [albums, setAlbums] = useState([]);
@@ -716,6 +726,56 @@ function UserHomePage() {
       },
       (err) => {
         console.error("shared uploads snapshot error", err);
+      },
+    );
+
+    return unsub;
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setSavedVideos([]);
+      return undefined;
+    }
+
+    const q = query(
+      collection(db, "videos"),
+      where("ownerUid", "==", user.uid),
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const next = snap.docs
+          .map((d) => {
+            const data = d.data();
+            const durationSec = Number(data.durationSec) || 0;
+            return {
+              id: d.id,
+              title: data.title || "Generated video",
+              subtitle: durationSec
+                ? `Generated video · ${Math.round(durationSec)}s`
+                : "Generated video",
+              url: data.url,
+              publicId: data.publicId,
+              albumId: data.albumId || "",
+              imageIds: data.imageIds || [],
+              themeId: "generated-video",
+              themeLabel: "Video",
+              durationSec,
+              createdAt: toMillis(data.createdAt),
+              ownerUid: data.ownerUid,
+              ownerName: data.ownerName,
+              isGeneratedVideo: true,
+            };
+          })
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        setSavedVideos(next);
+      },
+      (err) => {
+        console.error("videos snapshot error", err);
+        alert(err?.message || "Saved videos failed to load.");
       },
     );
 
@@ -1165,7 +1225,7 @@ function UserHomePage() {
     const sharedFiltered = sharedWithMeImages.filter(
       (img) => !ownIds.has(img.id),
     );
-    const combined = [...uploadedImages, ...sharedFiltered];
+    const combined = [...savedVideos, ...uploadedImages, ...sharedFiltered];
     const sortedUploads = combined.sort(
       (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
     );
@@ -1215,6 +1275,7 @@ function UserHomePage() {
     activeAlbum,
     albumPhotos,
     eventPhotos,
+    savedVideos,
     uploadedImages,
     sharedWithMeImages,
     flatThemeImages,
@@ -2885,6 +2946,7 @@ const handleAlbumDragEnd = async (event) => {
               {filteredImages.map((image) => {
                 const isSelected = selectedIds.has(image.id);
                 const owned = isOwnedUpload(image, user);
+                const canManageImage = owned && !image.isGeneratedVideo;
                 const isSharedItem = Boolean(image.isSharedWithMe) ||
                   (image.ownerUid && user?.uid && image.ownerUid !== user.uid);
 
@@ -2898,13 +2960,22 @@ const handleAlbumDragEnd = async (event) => {
 	                    }`}
                   >
                     <div className="relative">
-                      <img
-                        src={image.url}
-                        alt={image.title}
-                        onClick={() => setDetailImage(image)}
-                        className="gallery-card-img"
-                      />
-                      {owned && (
+                      {image.isGeneratedVideo ? (
+                        <video
+                          src={image.url}
+                          controls
+                          preload="metadata"
+                          className="h-48 w-full bg-black object-contain sm:h-56 lg:h-60"
+                        />
+                      ) : (
+                        <img
+                          src={image.url}
+                          alt={image.title}
+                          onClick={() => setDetailImage(image)}
+                          className="gallery-card-img"
+                        />
+                      )}
+                      {canManageImage && (
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -2956,7 +3027,7 @@ const handleAlbumDragEnd = async (event) => {
 	                          <span>{commentCounts[image.id] ?? 0}</span>
 	                        </button>
 
-                        {owned && (
+                        {canManageImage && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -2992,6 +3063,7 @@ const handleAlbumDragEnd = async (event) => {
 
 			                    </div>
 
+                    {canManageImage && (
                     <div className="absolute top-3 right-3 z-10">
                       <button
                         type="button"
@@ -3015,6 +3087,7 @@ const handleAlbumDragEnd = async (event) => {
                         )}
                       </button>
                     </div>
+                    )}
 		                  </article>
 		                );
 	              })}
@@ -4031,7 +4104,11 @@ const handleAlbumDragEnd = async (event) => {
           addComment={addComment}
           deleteComment={deleteComment}
           onOpenShare={(image) => setShareDialogUpload(image)}
-          canShare={isOwnedUpload(detailImage, user) && !detailImage.isEventPhoto}
+          canShare={
+            isOwnedUpload(detailImage, user) &&
+            !detailImage.isEventPhoto &&
+            !detailImage.isGeneratedVideo
+          }
         />
       )}
 
@@ -4057,6 +4134,7 @@ const handleAlbumDragEnd = async (event) => {
         }
         ownerUid={user?.uid}
         ownerName={profile?.displayName || user?.email || ""}
+        onSaved={() => showToast("Video saved to your Photos gallery.", "success")}
       />
     </>
   );

@@ -80,6 +80,7 @@ export default function VideoGeneratorModal({
   albumPhotos = [],
   ownerUid,
   ownerName,
+  onSaved,
 }) {
   const [seconds, setSeconds] = useState(3);
   const [aspect, setAspect] = useState("16:9");
@@ -267,6 +268,7 @@ export default function VideoGeneratorModal({
         },
       });
       setSavedId(ref.id);
+      onSaved?.(ref.id);
       trackEvent("save_generated_video_success", {
         duration_sec: result.durationSec,
         photo_count: orderedPhotos.length,
