@@ -26,7 +26,7 @@ import { db } from "../lib/firebase";
 import { uploadToCloudinary } from "../lib/cloudinary";
 import { generateStyledImage, AI_STYLES, isHFConfigured } from "../lib/huggingface";
 import { findUidByEmail, getUsersByUids, removeFromMyGallery } from "../lib/sharing";
-import { measureTrace, trackEvent } from "../lib/telemetry";
+import { measureTrace, startTrace, trackEvent } from "../lib/telemetry";
 import ShareDialog from "../components/ShareDialog";
 import VideoGeneratorModal from "../components/VideoGeneratorModal";
 import {
@@ -238,6 +238,18 @@ const isOwnedUpload = (image, user) =>
   Boolean(image?.ownerUid && user?.uid && image.ownerUid === user.uid);
 
 const eventInviteId = (eventId, uid) => `${eventId}_${uid}`;
+
+const finishTrace = (activeTrace, status, metrics = {}) => {
+  if (!activeTrace) return;
+
+  activeTrace.putAttribute("status", status);
+  Object.entries(metrics).forEach(([key, value]) => {
+    activeTrace.putMetric(key, value);
+  });
+  activeTrace.stop();
+};
+
+const errorCode = (err) => err?.code || err?.name || "error";
 
 /* ------------------------------------ */
 /* Comment Component */
@@ -813,6 +825,13 @@ function UserHomePage() {
       collection(db, "events"),
       where("memberUids", "array-contains", user.uid),
     );
+    let loadTrace = startTrace("event_vaults_load", {
+      attributes: { data_type: "event_vaults" },
+    });
+    const finishLoadTrace = (status, metrics = {}) => {
+      finishTrace(loadTrace, status, metrics);
+      loadTrace = null;
+    };
 
     const unsub = onSnapshot(
       q,
@@ -836,17 +855,26 @@ function UserHomePage() {
           .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 
         setEvents(next);
+        finishLoadTrace("success", { result_count: next.length });
         if (activeEventId && !next.some((event) => event.id === activeEventId)) {
           setActiveEventId(null);
         }
       },
       (err) => {
         console.error("events snapshot error", err);
+        finishLoadTrace("error");
+        trackEvent("event_data_load_failed", {
+          data_type: "event_vaults",
+          error_code: errorCode(err),
+        });
         alert(err?.message || "Event vaults failed to load.");
       },
     );
 
-    return unsub;
+    return () => {
+      finishLoadTrace("cancelled");
+      unsub();
+    };
   }, [user, activeEventId]);
 
   useEffect(() => {
@@ -859,6 +887,13 @@ function UserHomePage() {
       collection(db, "eventInvites"),
       where("recipientUid", "==", user.uid),
     );
+    let loadTrace = startTrace("event_invites_load", {
+      attributes: { data_type: "event_invites" },
+    });
+    const finishLoadTrace = (status, metrics = {}) => {
+      finishTrace(loadTrace, status, metrics);
+      loadTrace = null;
+    };
 
     const unsub = onSnapshot(
       q,
@@ -883,13 +918,22 @@ function UserHomePage() {
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
         setEventInvites(next);
+        finishLoadTrace("success", { pending_count: next.length });
       },
       (err) => {
         console.error("event invites snapshot error", err);
+        finishLoadTrace("error");
+        trackEvent("event_data_load_failed", {
+          data_type: "event_invites",
+          error_code: errorCode(err),
+        });
       },
     );
 
-    return unsub;
+    return () => {
+      finishLoadTrace("cancelled");
+      unsub();
+    };
   }, [user]);
 
   useEffect(() => {
@@ -902,12 +946,18 @@ function UserHomePage() {
       collection(db, "eventPhotos"),
       where("eventId", "==", activeEventId),
     );
+    let loadTrace = startTrace("event_photos_load", {
+      attributes: { data_type: "event_photos" },
+    });
+    const finishLoadTrace = (status, metrics = {}) => {
+      finishTrace(loadTrace, status, metrics);
+      loadTrace = null;
+    };
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        setEventPhotos(
-          snap.docs.map((d) => {
+        const next = snap.docs.map((d) => {
             const data = d.data();
             return {
               id: d.id,
@@ -923,16 +973,25 @@ function UserHomePage() {
               createdAt: toMillis(data.createdAt),
               isEventPhoto: true,
             };
-          }),
-        );
+          });
+        setEventPhotos(next);
+        finishLoadTrace("success", { photo_count: next.length });
       },
       (err) => {
         console.error("event photos snapshot error", err);
+        finishLoadTrace("error");
+        trackEvent("event_data_load_failed", {
+          data_type: "event_photos",
+          error_code: errorCode(err),
+        });
         alert(err?.message || "Event photos failed to load.");
       },
     );
 
-    return unsub;
+    return () => {
+      finishLoadTrace("cancelled");
+      unsub();
+    };
   }, [user, activeEventId]);
 
   useEffect(() => {
@@ -945,6 +1004,13 @@ function UserHomePage() {
       collection(db, "eventVotes"),
       where("eventId", "==", activeEventId),
     );
+    let loadTrace = startTrace("event_votes_load", {
+      attributes: { data_type: "event_votes" },
+    });
+    const finishLoadTrace = (status, metrics = {}) => {
+      finishTrace(loadTrace, status, metrics);
+      loadTrace = null;
+    };
 
     const unsub = onSnapshot(
       q,
@@ -960,13 +1026,25 @@ function UserHomePage() {
           };
         });
         setEventVotes(next);
+        finishLoadTrace("success", {
+          photo_count: Object.keys(next).length,
+          vote_count: snap.size,
+        });
       },
       (err) => {
         console.error("event votes snapshot error", err);
+        finishLoadTrace("error");
+        trackEvent("event_data_load_failed", {
+          data_type: "event_votes",
+          error_code: errorCode(err),
+        });
       },
     );
 
-    return unsub;
+    return () => {
+      finishLoadTrace("cancelled");
+      unsub();
+    };
   }, [user, activeEventId]);
 
   useEffect(() => {
@@ -1018,7 +1096,12 @@ function UserHomePage() {
     }
 
     let cancelled = false;
-    getUsersByUids(activeEventMemberUids)
+    measureTrace("event_members_load", async (activeTrace) => {
+      activeTrace?.putMetric("member_count", activeEventMemberUids.length);
+      const docs = await getUsersByUids(activeEventMemberUids);
+      activeTrace?.putMetric("result_count", docs.length);
+      return docs;
+    })
       .then((docs) => {
         if (cancelled) return;
         const byUid = new Map(docs.map((member) => [member.uid, member]));
@@ -1031,6 +1114,10 @@ function UserHomePage() {
       })
       .catch((err) => {
         console.error("event members load failed", err);
+        trackEvent("event_data_load_failed", {
+          data_type: "event_members",
+          error_code: errorCode(err),
+        });
         if (!cancelled) setEventMembers([]);
       });
 
@@ -1621,18 +1708,112 @@ function UserHomePage() {
     }
   };
 
+  const eventTelemetryParams = (event = activeEvent) => ({
+    role: !event ? "unknown" : event.ownerUid === user?.uid ? "owner" : "member",
+    member_count: event?.memberUids?.length || 1,
+    photo_count:
+      typeof event?.photoCount === "number" ? event.photoCount : eventPhotos.length,
+  });
+
+  const trackEventModalOpen = (modalName, params = {}) => {
+    trackEvent("event_modal_open", {
+      modal_name: modalName,
+      ...params,
+    });
+  };
+
+  const trackEventModalClose = (modalName, reason, params = {}) => {
+    trackEvent("event_modal_close", {
+      modal_name: modalName,
+      reason,
+      ...params,
+    });
+  };
+
+  const openEventVault = (event, source = "event_card") => {
+    if (!event?.id) return;
+    trackEvent("event_view", {
+      source,
+      ...eventTelemetryParams(event),
+    });
+    setActiveEventId(event.id);
+  };
+
+  const closeActiveEvent = (source = "back_button") => {
+    if (activeEvent) {
+      trackEvent("event_back", {
+        source,
+        ...eventTelemetryParams(activeEvent),
+        displayed_photo_count: eventPhotos.length,
+      });
+    }
+    setActiveEventId(null);
+  };
+
+  const openCreateEventModal = () => {
+    trackEventModalOpen("event_create");
+    setShowCreateEventModal(true);
+  };
+
+  const closeCreateEventModal = (reason = "cancel") => {
+    trackEventModalClose("event_create", reason);
+    setShowCreateEventModal(false);
+    setNewEventName("");
+    setNewEventDescription("");
+  };
+
+  const openInviteEventModal = () => {
+    if (!activeEvent || !isActiveEventOwner) return;
+    trackEventModalOpen("event_invite", eventTelemetryParams(activeEvent));
+    setShowInviteEventModal(true);
+  };
+
+  const closeInviteEventModal = (reason = "cancel") => {
+    trackEventModalClose("event_invite", reason, eventTelemetryParams(activeEvent));
+    setShowInviteEventModal(false);
+    setInviteEmail("");
+  };
+
+  const openEventUploadModal = () => {
+    if (!activeEvent) return;
+    trackEventModalOpen("event_photo_upload", eventTelemetryParams(activeEvent));
+    setShowEventUploadModal(true);
+  };
+
+  const closeEventUploadModal = (reason = "cancel") => {
+    trackEventModalClose(
+      "event_photo_upload",
+      reason,
+      eventTelemetryParams(activeEvent),
+    );
+    setShowEventUploadModal(false);
+    setEventUploadTitle("");
+    setEventUploadDescription("");
+    setEventUploadFile(null);
+  };
+
   const handleDeleteEvent = async () => {
     if (!activeEvent || !isActiveEventOwner) return;
+    const photoCount = eventPhotos.filter(
+      (photo) => photo.eventId === activeEvent.id,
+    ).length;
 
     const confirmed = window.confirm(
       `Delete event vault "${activeEvent.name}"? This removes the event, its contributed photos, and all votes.`,
     );
-    if (!confirmed) return;
+    if (!confirmed) {
+      trackEvent("event_delete_cancel", {
+        ...eventTelemetryParams(activeEvent),
+        photo_count: photoCount,
+      });
+      return;
+    }
 
     try {
       setEventSaving(true);
       trackEvent("event_delete_start", {
-        photo_count: eventPhotos.filter((photo) => photo.eventId === activeEvent.id).length,
+        ...eventTelemetryParams(activeEvent),
+        photo_count: photoCount,
       });
 
       await measureTrace("event_delete", async (activeTrace) => {
@@ -1694,9 +1875,17 @@ function UserHomePage() {
 
   const openEditEventModal = () => {
     if (!activeEvent || !isActiveEventOwner) return;
+    trackEventModalOpen("event_edit", eventTelemetryParams(activeEvent));
     setEditEventName(activeEvent.name || "");
     setEditEventDescription(activeEvent.description || "");
     setShowEditEventModal(true);
+  };
+
+  const closeEditEventModal = (reason = "cancel") => {
+    trackEventModalClose("event_edit", reason, eventTelemetryParams(activeEvent));
+    setShowEditEventModal(false);
+    setEditEventName(activeEvent?.name || "");
+    setEditEventDescription(activeEvent?.description || "");
   };
 
   const handleEditEventSubmit = async (e) => {
@@ -1718,7 +1907,7 @@ function UserHomePage() {
         });
       });
 
-      setShowEditEventModal(false);
+      closeEditEventModal("success");
       trackEvent("event_update_success");
       showToast("Event info updated.", "success");
     } catch (err) {
@@ -1755,13 +1944,17 @@ function UserHomePage() {
         });
       });
 
-      setNewEventName("");
-      setNewEventDescription("");
-      setShowCreateEventModal(false);
+      closeCreateEventModal("success");
       setViewMode("events");
       setActiveAlbumId(null);
       setActiveEventId(ref.id);
       trackEvent("event_create_success");
+      trackEvent("event_view", {
+        source: "create_success",
+        role: "owner",
+        member_count: 1,
+        photo_count: 0,
+      });
       showToast("Event vault created.", "success");
     } catch (err) {
       console.error("create event failed", err);
@@ -1846,8 +2039,7 @@ function UserHomePage() {
         return;
       }
 
-      setInviteEmail("");
-      setShowInviteEventModal(false);
+      closeInviteEventModal("success");
       trackEvent("event_invite_success");
       showToast("Invitation sent.", "success");
     } catch (err) {
@@ -1897,6 +2089,10 @@ function UserHomePage() {
         setViewMode("events");
         setActiveAlbumId(null);
         setActiveEventId(invite.eventId);
+        trackEvent("event_view", {
+          source: "invite_accept",
+          role: "member",
+        });
       }
     } catch (err) {
       console.error("respond to event invite failed", err);
@@ -1949,10 +2145,7 @@ function UserHomePage() {
         metrics: { file_size_bytes: eventUploadFile.size || 0 },
       });
 
-      setEventUploadTitle("");
-      setEventUploadDescription("");
-      setEventUploadFile(null);
-      setShowEventUploadModal(false);
+      closeEventUploadModal("success");
       trackEvent("event_photo_upload_success", {
         file_type: eventUploadFile.type || "unknown",
         file_size_bytes: eventUploadFile.size || 0,
@@ -2027,11 +2220,20 @@ function UserHomePage() {
     const confirmed = window.confirm(
       `Delete "${image.title}" from this event vault?`,
     );
-    if (!confirmed) return;
+    if (!confirmed) {
+      trackEvent("event_photo_delete_cancel", {
+        ...eventTelemetryParams(activeEvent),
+        vote_count: eventVotes[image.id]?.count || 0,
+      });
+      return;
+    }
 
     try {
       setEventSaving(true);
-      trackEvent("event_photo_delete_start");
+      trackEvent("event_photo_delete_start", {
+        ...eventTelemetryParams(activeEvent),
+        vote_count: eventVotes[image.id]?.count || 0,
+      });
 
       await measureTrace("event_photo_delete", async (activeTrace) => {
         const votesSnap = await getDocs(
@@ -2089,10 +2291,26 @@ function UserHomePage() {
       image.ownerUid === user.uid || activeEvent.ownerUid === user.uid;
     if (!canEdit) return;
 
+    trackEventModalOpen("event_photo_edit", {
+      ...eventTelemetryParams(activeEvent),
+      permission: image.ownerUid === user.uid ? "photo_owner" : "event_owner",
+    });
     setEditingEventPhotoId(image.id);
     setEditTitle(image.title || "");
     setEditDescription(image.subtitle || "");
     setShowEditEventPhotoModal(true);
+  };
+
+  const closeEditEventPhotoModal = (reason = "cancel") => {
+    trackEventModalClose(
+      "event_photo_edit",
+      reason,
+      eventTelemetryParams(activeEvent),
+    );
+    setShowEditEventPhotoModal(false);
+    setEditingEventPhotoId("");
+    setEditTitle("");
+    setEditDescription("");
   };
 
   const handleEditEventPhotoSubmit = async (e) => {
@@ -2124,10 +2342,7 @@ function UserHomePage() {
           : prev,
       );
 
-      setShowEditEventPhotoModal(false);
-      setEditingEventPhotoId("");
-      setEditTitle("");
-      setEditDescription("");
+      closeEditEventPhotoModal("success");
       trackEvent("event_photo_update_success");
       showToast("Event photo updated.", "success");
     } catch (err) {
@@ -2357,7 +2572,7 @@ const handleAlbumDragEnd = async (event) => {
             </button>
 
             <button
-              onClick={() => setShowCreateEventModal(true)}
+              onClick={openCreateEventModal}
               className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
             >
               <CalendarDays size={16} />
@@ -2448,7 +2663,7 @@ const handleAlbumDragEnd = async (event) => {
                 onClick={() => {
                   setViewMode("photos");
                   setActiveAlbumId(null);
-                  setActiveEventId(null);
+                  closeActiveEvent("photos_tab");
                 }}
                 className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
                   viewMode === "photos"
@@ -2464,7 +2679,7 @@ const handleAlbumDragEnd = async (event) => {
                 onClick={() => {
                   setViewMode("albums");
                   setActiveAlbumId(null);
-                  setActiveEventId(null);
+                  closeActiveEvent("albums_tab");
                 }}
                 className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
                   viewMode === "albums" && !activeAlbum
@@ -2480,7 +2695,7 @@ const handleAlbumDragEnd = async (event) => {
                 onClick={() => {
                   setViewMode("events");
                   setActiveAlbumId(null);
-                  setActiveEventId(null);
+                  closeActiveEvent("events_tab");
                 }}
                 className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
                   viewMode === "events" && !activeEvent
@@ -2508,7 +2723,7 @@ const handleAlbumDragEnd = async (event) => {
 
               {viewMode === "events" && activeEvent && (
                 <button
-                  onClick={() => setActiveEventId(null)}
+                  onClick={() => closeActiveEvent("back_button")}
                   className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Back to Events
@@ -2665,7 +2880,7 @@ const handleAlbumDragEnd = async (event) => {
                 {isActiveEventOwner && (
                   <>
                     <button
-                      onClick={() => setShowInviteEventModal(true)}
+                      onClick={openInviteEventModal}
                       disabled={eventSaving}
                       className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-800 dark:bg-slate-800 dark:text-emerald-200 dark:hover:bg-emerald-900/30"
                     >
@@ -2685,7 +2900,7 @@ const handleAlbumDragEnd = async (event) => {
                 )}
 
                 <button
-                  onClick={() => setShowEventUploadModal(true)}
+                  onClick={openEventUploadModal}
                   className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
                 >
                   <Upload size={16} />
@@ -3001,7 +3216,7 @@ const handleAlbumDragEnd = async (event) => {
                 {events.map((event) => (
                   <button
                     key={event.id}
-                    onClick={() => setActiveEventId(event.id)}
+                    onClick={() => openEventVault(event)}
                     className="overflow-hidden rounded-3xl bg-white text-left ring-2 ring-emerald-100 transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-[#2a3655] dark:ring-emerald-900/50"
                   >
                     <div className="aspect-[4/3] w-full overflow-hidden bg-emerald-50 dark:bg-emerald-950/30">
@@ -3460,11 +3675,7 @@ const handleAlbumDragEnd = async (event) => {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowEditEventModal(false);
-                      setEditEventName(activeEvent.name || "");
-                      setEditEventDescription(activeEvent.description || "");
-                    }}
+                    onClick={() => closeEditEventModal("cancel")}
                     disabled={eventSaving}
                     className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
                   >
@@ -3521,12 +3732,7 @@ const handleAlbumDragEnd = async (event) => {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowEditEventPhotoModal(false);
-                      setEditingEventPhotoId("");
-                      setEditTitle("");
-                      setEditDescription("");
-                    }}
+                    onClick={() => closeEditEventPhotoModal("cancel")}
                     disabled={eventPhotoEditing}
                     className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
                   >
@@ -3683,11 +3889,7 @@ const handleAlbumDragEnd = async (event) => {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowCreateEventModal(false);
-                      setNewEventName("");
-                      setNewEventDescription("");
-                    }}
+                    onClick={() => closeCreateEventModal("cancel")}
                     disabled={eventSaving}
                     className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
                   >
@@ -3733,10 +3935,7 @@ const handleAlbumDragEnd = async (event) => {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowInviteEventModal(false);
-                      setInviteEmail("");
-                    }}
+                    onClick={() => closeInviteEventModal("cancel")}
                     disabled={eventSaving}
                     className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
                   >
@@ -3805,12 +4004,7 @@ const handleAlbumDragEnd = async (event) => {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowEventUploadModal(false);
-                      setEventUploadTitle("");
-                      setEventUploadDescription("");
-                      setEventUploadFile(null);
-                    }}
+                    onClick={() => closeEventUploadModal("cancel")}
                     disabled={eventUploading}
                     className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
                   >
