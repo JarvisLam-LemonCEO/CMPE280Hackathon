@@ -49,16 +49,44 @@ export default function SharedImagePage() {
       setLoading(true);
 
       try {
-        const snap = await measureTrace("load_shared_image", async () => {
-          return getDoc(doc(db, "uploads", imageId));
+        const sharedItem = await measureTrace("load_shared_image", async (activeTrace) => {
+          const uploadSnap = await getDoc(doc(db, "uploads", imageId));
+          if (uploadSnap.exists() && uploadSnap.data()?.isShared) {
+            activeTrace?.putAttribute("content_type", "image");
+            return {
+              id: uploadSnap.id,
+              contentType: "image",
+              data: uploadSnap.data(),
+            };
+          }
+
+          const videoSnap = await getDoc(doc(db, "videos", imageId));
+          if (videoSnap.exists() && videoSnap.data()?.isShared) {
+            activeTrace?.putAttribute("content_type", "video");
+            return {
+              id: videoSnap.id,
+              contentType: "video",
+              data: videoSnap.data(),
+            };
+          }
+
+          return null;
         });
         if (!active) return;
 
-        if (snap.exists() && snap.data()?.isShared) {
-          setImage({ id: snap.id, ...snap.data() });
+        if (sharedItem) {
+          setImage({
+            id: sharedItem.id,
+            ...sharedItem.data,
+            isGeneratedVideo: sharedItem.contentType === "video",
+            themeLabel:
+              sharedItem.contentType === "video"
+                ? "Video"
+                : sharedItem.data.themeLabel,
+          });
           trackEvent("shared_image_view", {
             source: "public_link",
-            content_type: "image",
+            content_type: sharedItem.contentType,
           });
         } else {
           setImage(null);
@@ -83,13 +111,15 @@ export default function SharedImagePage() {
   }, [imageId, themeImage]);
 
   const isThemeImage = Boolean(themeImage);
+  const contentType = image?.isGeneratedVideo ? "video" : "image";
+  const contentLabel = contentType === "video" ? "video" : "photo";
   const isOwner = Boolean(user && image?.ownerUid && image.ownerUid === user.uid);
   const alreadyAdded = Boolean(
     user && Array.isArray(image?.sharedWith) && image.sharedWith.includes(user.uid),
   );
 
   const handleSignInToAdd = () => {
-    trackEvent("shared_image_signin_click", { content_type: "image" });
+    trackEvent("shared_image_signin_click", { content_type: contentType });
     navigate(
       `/auth?mode=login&next=${encodeURIComponent(`/shared/${imageId}`)}`,
     );
@@ -99,19 +129,20 @@ export default function SharedImagePage() {
     if (!user || !image?.id || isThemeImage) return;
     setAddState("loading");
     setAddError("");
-    trackEvent("shared_gallery_add_start", { content_type: "image" });
+    trackEvent("shared_gallery_add_start", { content_type: contentType });
     try {
       const result = await addSharedToGallery({
         uploadId: image.id,
         currentUid: user.uid,
+        contentType,
       });
       if (!result.ok) {
         if (result.reason === "already-added") {
           setAddError("Already in your gallery.");
         } else if (result.reason === "is-owner") {
-          setAddError("This is your own photo.");
+          setAddError(`This is your own ${contentLabel}.`);
         } else {
-          setAddError("This photo is no longer available.");
+          setAddError(`This ${contentLabel} is no longer available.`);
         }
         setAddState("error");
         trackEvent("shared_gallery_add_blocked", {
@@ -120,7 +151,7 @@ export default function SharedImagePage() {
         return;
       }
       setAddState("added");
-      trackEvent("shared_gallery_add_success", { content_type: "image" });
+      trackEvent("shared_gallery_add_success", { content_type: contentType });
       navigate("/user-home");
     } catch (err) {
       console.error("add shared to gallery failed", err);
@@ -151,7 +182,7 @@ export default function SharedImagePage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f6f7fb] px-6 text-slate-600 dark:bg-[#1a2035] dark:text-slate-300">
-        <p>Loading shared image...</p>
+        <p>Loading shared media...</p>
       </main>
     );
   }
@@ -162,13 +193,13 @@ export default function SharedImagePage() {
         <section className="mx-auto max-w-4xl section-card">
           <div className="flex items-center gap-3 text-[#28457a]">
             <ImageIcon size={22} />
-            <p className="page-label">Shared image</p>
+            <p className="page-label">Shared media</p>
           </div>
           <h1 className="mt-3 text-3xl font-bold text-[#0f172f] dark:text-white">
-            This image link is unavailable
+            This shared link is unavailable
           </h1>
           <p className="mt-3 max-w-2xl text-[16px] leading-7 text-[#64748b] dark:text-slate-400">
-            The image may have been deleted or hasn&apos;t been shared
+            The item may have been deleted or hasn&apos;t been shared
             publicly.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
@@ -219,11 +250,20 @@ export default function SharedImagePage() {
 
         <article className="overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200 dark:bg-[#222b45] dark:ring-slate-700 sm:rounded-[32px] lg:grid lg:grid-cols-[minmax(0,1.4fr)_420px]">
           <div className="flex items-center justify-center bg-black">
-            <img
-              src={image.url}
-              alt={image.title}
-              className="h-auto max-h-[60vh] w-full object-contain lg:max-h-[75vh] lg:object-cover"
-            />
+            {image.isGeneratedVideo ? (
+              <video
+                src={image.url}
+                controls
+                autoPlay
+                className="max-h-[60vh] w-full bg-black object-contain lg:max-h-[75vh]"
+              />
+            ) : (
+              <img
+                src={image.url}
+                alt={image.title}
+                className="h-auto max-h-[60vh] w-full object-contain lg:max-h-[75vh] lg:object-cover"
+              />
+            )}
           </div>
 
           <div className="flex flex-col justify-between p-5 sm:p-8">
@@ -260,7 +300,7 @@ export default function SharedImagePage() {
                     </button>
                   ) : isOwner ? (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-3 text-center text-sm font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                      This is your photo
+                      This is your {contentLabel}
                     </div>
                   ) : alreadyAdded ? (
                     <button
@@ -281,7 +321,7 @@ export default function SharedImagePage() {
                           ? "Adding..."
                           : addState === "added"
                             ? "Added!"
-                            : "Add to my photos"}
+                            : "Add to my gallery"}
                       </span>
                     </button>
                   )}
@@ -307,7 +347,7 @@ export default function SharedImagePage() {
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 <ExternalLink size={16} />
-                Open image file
+                Open {contentLabel} file
               </a>
             </div>
           </div>

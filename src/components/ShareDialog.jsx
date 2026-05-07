@@ -74,6 +74,8 @@ export default function ShareDialog({
   const isOwner = Boolean(
     currentUser?.uid && upload?.ownerUid && currentUser.uid === upload.ownerUid,
   );
+  const contentType = upload?.isGeneratedVideo ? "video" : "image";
+  const contentLabel = contentType === "video" ? "video" : "photo";
 
   const sharedWithKey = (upload?.sharedWith ?? []).join(",");
 
@@ -106,11 +108,11 @@ export default function ShareDialog({
       setCopied(false);
     } else {
       trackEvent("share_dialog_open", {
-        content_type: "image",
+        content_type: contentType,
         is_owner: isOwner,
       });
     }
-  }, [open, upload?.id, isOwner]);
+  }, [open, upload?.id, isOwner, contentType]);
 
   // Load owner + viewer user docs
   useEffect(() => {
@@ -164,13 +166,14 @@ export default function ShareDialog({
 
     setSubmitting(true);
     setStatusMsg(null);
-    trackEvent("share_email_start", { content_type: "image" });
+    trackEvent("share_email_start", { content_type: contentType });
 
     try {
       const result = await shareWithEmail({
         uploadId: upload.id,
         ownerUid: currentUser.uid,
         recipientEmail: email,
+        contentType,
       });
 
       if (!result.ok) {
@@ -182,11 +185,11 @@ export default function ShareDialog({
               ? "You can't share with yourself"
               : reason === "already-shared"
                 ? "Already shared with that user"
-                : "Could not share photo";
+                : `Could not share ${contentLabel}`;
         setStatusMsg({ kind: "error", text });
         trackEvent("share_email_blocked", {
           reason,
-          content_type: "image",
+          content_type: contentType,
         });
         return;
       }
@@ -208,7 +211,7 @@ export default function ShareDialog({
       setStatusMsg({ kind: "success", text: "Shared!" });
       trackEvent("share", {
         method: "email",
-        content_type: "image",
+        content_type: contentType,
       });
       window.setTimeout(() => {
         setStatusMsg((cur) => (cur && cur.kind === "success" ? null : cur));
@@ -216,9 +219,10 @@ export default function ShareDialog({
     } catch (err) {
       console.error("shareWithEmail failed", err);
       trackEvent("share_email_failed", {
+        content_type: contentType,
         error_code: err?.code || err?.name || "error",
       });
-      setStatusMsg({ kind: "error", text: "Could not share photo" });
+      setStatusMsg({ kind: "error", text: `Could not share ${contentLabel}` });
     } finally {
       setSubmitting(false);
     }
@@ -227,12 +231,13 @@ export default function ShareDialog({
   const handleRemoveViewer = async (uid) => {
     if (!isOwner) return;
     try {
-      await unshareWithUser(upload.id, uid);
+      await unshareWithUser(upload.id, uid, contentType);
       setPeople((prev) => prev.filter((p) => p.uid !== uid));
-      trackEvent("share_remove_viewer", { content_type: "image" });
+      trackEvent("share_remove_viewer", { content_type: contentType });
     } catch (err) {
       console.error("unshareWithUser failed", err);
       trackEvent("share_remove_viewer_failed", {
+        content_type: contentType,
         error_code: err?.code || err?.name || "error",
       });
     }
@@ -243,14 +248,15 @@ export default function ShareDialog({
     if (!isOwner) return;
     if (Boolean(upload.isShared) === Boolean(nextIsShared)) return;
     try {
-      await setIsShared(upload.id, Boolean(nextIsShared));
+      await setIsShared(upload.id, Boolean(nextIsShared), contentType);
       trackEvent("share_access_update", {
-        content_type: "image",
+        content_type: contentType,
         is_shared: Boolean(nextIsShared),
       });
     } catch (err) {
       console.error("setIsShared failed", err);
       trackEvent("share_access_update_failed", {
+        content_type: contentType,
         error_code: err?.code || err?.name || "error",
       });
     }
@@ -261,11 +267,12 @@ export default function ShareDialog({
     try {
       await navigator.clipboard.writeText(link);
       setCopied(true);
-      trackEvent("share_link_copy", { content_type: "image" });
+      trackEvent("share_link_copy", { content_type: contentType });
       window.setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("copy link failed", err);
       trackEvent("share_link_copy_failed", {
+        content_type: contentType,
         error_code: err?.code || err?.name || "error",
       });
     }

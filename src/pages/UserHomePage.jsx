@@ -237,6 +237,32 @@ const formatCommentDate = (timestamp) => {
 const isOwnedUpload = (image, user) =>
   Boolean(image?.ownerUid && user?.uid && image.ownerUid === user.uid);
 
+const mapVideoDoc = (docSnap, isSharedWithMe = false) => {
+  const data = docSnap.data();
+  const durationSec = Number(data.durationSec) || 0;
+  return {
+    id: docSnap.id,
+    title: data.title || "Generated video",
+    subtitle: durationSec
+      ? `Generated video · ${Math.round(durationSec)}s`
+      : "Generated video",
+    url: data.url,
+    publicId: data.publicId,
+    albumId: data.albumId || "",
+    imageIds: data.imageIds || [],
+    themeId: "generated-video",
+    themeLabel: "Video",
+    durationSec,
+    createdAt: toMillis(data.createdAt),
+    ownerUid: data.ownerUid,
+    ownerName: data.ownerName,
+    isShared: Boolean(data.isShared),
+    sharedWith: data.sharedWith ?? [],
+    isGeneratedVideo: true,
+    isSharedWithMe,
+  };
+};
+
 const eventInviteId = (eventId, uid) => `${eventId}_${uid}`;
 
 const finishTrace = (activeTrace, status, metrics = {}) => {
@@ -496,6 +522,7 @@ function UserHomePage() {
   const [uploadedImages, setUploadedImages] = useState([]);
   const [sharedWithMeImages, setSharedWithMeImages] = useState([]);
   const [savedVideos, setSavedVideos] = useState([]);
+  const [sharedWithMeVideos, setSharedWithMeVideos] = useState([]);
   const [shareDialogUpload, setShareDialogUpload] = useState(null);
   const [toast, setToast] = useState(null);
   const [albums, setAlbums] = useState([]);
@@ -747,28 +774,7 @@ function UserHomePage() {
       q,
       (snap) => {
         const next = snap.docs
-          .map((d) => {
-            const data = d.data();
-            const durationSec = Number(data.durationSec) || 0;
-            return {
-              id: d.id,
-              title: data.title || "Generated video",
-              subtitle: durationSec
-                ? `Generated video · ${Math.round(durationSec)}s`
-                : "Generated video",
-              url: data.url,
-              publicId: data.publicId,
-              albumId: data.albumId || "",
-              imageIds: data.imageIds || [],
-              themeId: "generated-video",
-              themeLabel: "Video",
-              durationSec,
-              createdAt: toMillis(data.createdAt),
-              ownerUid: data.ownerUid,
-              ownerName: data.ownerName,
-              isGeneratedVideo: true,
-            };
-          })
+          .map((d) => mapVideoDoc(d))
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
         setSavedVideos(next);
@@ -782,14 +788,45 @@ function UserHomePage() {
     return unsub;
   }, [user]);
 
+  useEffect(() => {
+    if (!user) {
+      setSharedWithMeVideos([]);
+      return undefined;
+    }
+
+    const q = query(
+      collection(db, "videos"),
+      where("sharedWith", "array-contains", user.uid),
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const next = snap.docs
+          .map((d) => mapVideoDoc(d, true))
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        setSharedWithMeVideos(next);
+      },
+      (err) => {
+        console.error("shared videos snapshot error", err);
+      },
+    );
+
+    return unsub;
+  }, [user]);
+
   // Keep the open ShareDialog in sync with live upload data.
   useEffect(() => {
     if (!shareDialogUpload?.id) return;
-    const next = uploadedImages.find((img) => img.id === shareDialogUpload.id);
+    const sourceItems = shareDialogUpload.isGeneratedVideo
+      ? savedVideos
+      : uploadedImages;
+    const next = sourceItems.find((item) => item.id === shareDialogUpload.id);
     if (next && next !== shareDialogUpload) {
       setShareDialogUpload(next);
     }
-  }, [uploadedImages, shareDialogUpload]);
+  }, [uploadedImages, savedVideos, shareDialogUpload]);
 
   useEffect(() => {
     if (!user) {
@@ -1225,7 +1262,16 @@ function UserHomePage() {
     const sharedFiltered = sharedWithMeImages.filter(
       (img) => !ownIds.has(img.id),
     );
-    const combined = [...savedVideos, ...uploadedImages, ...sharedFiltered];
+    const ownVideoIds = new Set(savedVideos.map((video) => video.id));
+    const sharedVideoFiltered = sharedWithMeVideos.filter(
+      (video) => !ownVideoIds.has(video.id),
+    );
+    const combined = [
+      ...savedVideos,
+      ...sharedVideoFiltered,
+      ...uploadedImages,
+      ...sharedFiltered,
+    ];
     const sortedUploads = combined.sort(
       (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
     );
@@ -1276,6 +1322,7 @@ function UserHomePage() {
     albumPhotos,
     eventPhotos,
     savedVideos,
+    sharedWithMeVideos,
     uploadedImages,
     sharedWithMeImages,
     flatThemeImages,
@@ -1424,7 +1471,11 @@ function UserHomePage() {
     if (!confirmed) return;
 
     try {
-      await removeFromMyGallery({ uploadId: image.id, currentUid: user.uid });
+      await removeFromMyGallery({
+        uploadId: image.id,
+        currentUid: user.uid,
+        contentType: image.isGeneratedVideo ? "video" : "image",
+      });
       showToast("Removed from your gallery.", "success");
     } catch (err) {
       console.error("remove from my gallery failed", err);
@@ -2963,9 +3014,10 @@ const handleAlbumDragEnd = async (event) => {
                       {image.isGeneratedVideo ? (
                         <video
                           src={image.url}
-                          controls
                           preload="metadata"
-                          className="h-48 w-full bg-black object-contain sm:h-56 lg:h-60"
+                          playsInline
+                          onClick={() => setDetailImage(image)}
+                          className="h-48 w-full cursor-pointer bg-black object-contain transition hover:brightness-90 sm:h-56 lg:h-60"
                         />
                       ) : (
                         <img
@@ -4106,8 +4158,7 @@ const handleAlbumDragEnd = async (event) => {
           onOpenShare={(image) => setShareDialogUpload(image)}
           canShare={
             isOwnedUpload(detailImage, user) &&
-            !detailImage.isEventPhoto &&
-            !detailImage.isGeneratedVideo
+            !detailImage.isEventPhoto
           }
         />
       )}

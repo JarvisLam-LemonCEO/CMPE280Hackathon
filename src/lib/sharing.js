@@ -13,6 +13,9 @@ import {
 import { db } from "./firebase";
 import { measureTrace } from "./telemetry";
 
+const collectionForContent = (contentType = "image") =>
+  contentType === "video" ? "videos" : "uploads";
+
 // Find a user's UID by their email. Returns null if not found.
 export async function findUidByEmail(email) {
   return measureTrace("find_user_by_email", async (activeTrace) => {
@@ -29,13 +32,19 @@ export async function findUidByEmail(email) {
 // Owner shares a photo with another user by email.
 // Returns { ok: true, recipientUid } on success,
 // { ok: false, reason: "not-found" | "already-shared" | "self" } otherwise.
-export async function shareWithEmail({ uploadId, ownerUid, recipientEmail }) {
+export async function shareWithEmail({
+  uploadId,
+  ownerUid,
+  recipientEmail,
+  contentType = "image",
+}) {
   return measureTrace("share_with_email", async (activeTrace) => {
+    activeTrace?.putAttribute("content_type", contentType);
     const recipientUid = await findUidByEmail(recipientEmail);
     if (!recipientUid) return { ok: false, reason: "not-found" };
     if (recipientUid === ownerUid) return { ok: false, reason: "self" };
 
-    const ref = doc(db, "uploads", uploadId);
+    const ref = doc(db, collectionForContent(contentType), uploadId);
     const snap = await getDoc(ref);
     const sharedWith = snap.data()?.sharedWith ?? [];
     activeTrace?.putMetric("shared_with_count", sharedWith.length);
@@ -50,9 +59,14 @@ export async function shareWithEmail({ uploadId, ownerUid, recipientEmail }) {
 
 // Recipient adds a shared photo to their gallery.
 // Returns { ok: true } or { ok: false, reason: "not-found" | "already-added" | "is-owner" }.
-export async function addSharedToGallery({ uploadId, currentUid }) {
+export async function addSharedToGallery({
+  uploadId,
+  currentUid,
+  contentType = "image",
+}) {
   return measureTrace("add_shared_to_gallery", async (activeTrace) => {
-    const ref = doc(db, "uploads", uploadId);
+    activeTrace?.putAttribute("content_type", contentType);
+    const ref = doc(db, collectionForContent(contentType), uploadId);
     const snap = await getDoc(ref);
     if (!snap.exists()) return { ok: false, reason: "not-found" };
     const data = snap.data();
@@ -68,9 +82,13 @@ export async function addSharedToGallery({ uploadId, currentUid }) {
 }
 
 // Recipient removes a shared photo from their gallery.
-export async function removeFromMyGallery({ uploadId, currentUid }) {
+export async function removeFromMyGallery({
+  uploadId,
+  currentUid,
+  contentType = "image",
+}) {
   await measureTrace("remove_from_my_gallery", async () => {
-    await updateDoc(doc(db, "uploads", uploadId), {
+    await updateDoc(doc(db, collectionForContent(contentType), uploadId), {
       sharedWith: arrayRemove(currentUid),
     });
   });
@@ -98,17 +116,18 @@ export async function getUsersByUids(uids) {
 }
 
 // Toggle the public-link visibility (`isShared` field).
-export async function setIsShared(uploadId, isShared) {
+export async function setIsShared(uploadId, isShared, contentType = "image") {
   await measureTrace("set_public_share_access", async (activeTrace) => {
     activeTrace?.putAttribute("is_shared", isShared ? "true" : "false");
-    await updateDoc(doc(db, "uploads", uploadId), { isShared });
+    activeTrace?.putAttribute("content_type", contentType);
+    await updateDoc(doc(db, collectionForContent(contentType), uploadId), { isShared });
   });
 }
 
 // Owner removes a specific UID from sharedWith.
-export async function unshareWithUser(uploadId, uidToRemove) {
+export async function unshareWithUser(uploadId, uidToRemove, contentType = "image") {
   await measureTrace("unshare_with_user", async () => {
-    await updateDoc(doc(db, "uploads", uploadId), {
+    await updateDoc(doc(db, collectionForContent(contentType), uploadId), {
       sharedWith: arrayRemove(uidToRemove),
     });
   });
