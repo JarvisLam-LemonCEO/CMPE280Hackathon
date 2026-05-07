@@ -26,6 +26,7 @@ import { db } from "../lib/firebase";
 import { uploadToCloudinary } from "../lib/cloudinary";
 import { generateStyledImage, AI_STYLES, isHFConfigured } from "../lib/huggingface";
 import { findUidByEmail, getUsersByUids, removeFromMyGallery } from "../lib/sharing";
+import { measureTrace } from "../lib/telemetry";
 import ShareDialog from "../components/ShareDialog";
 import VideoGeneratorModal from "../components/VideoGeneratorModal";
 import {
@@ -1363,18 +1364,23 @@ function UserHomePage() {
     try {
       setAIApplying(true);
 
-      const originalUrl = selectedEditableUpload.originalUrl || selectedEditableUpload.url;
-      const originalPublicId =
-        selectedEditableUpload.originalPublicId || selectedEditableUpload.publicId || "";
-      const { url, publicId } = await uploadToCloudinary(aiPreviewBlob);
+      await measureTrace("ai_photo_apply_total", async () => {
+        const originalUrl = selectedEditableUpload.originalUrl || selectedEditableUpload.url;
+        const originalPublicId =
+          selectedEditableUpload.originalPublicId || selectedEditableUpload.publicId || "";
+        const { url, publicId } = await uploadToCloudinary(aiPreviewBlob);
 
-      await updateDoc(doc(db, "uploads", selectedEditableUpload.id), {
-        originalUrl,
-        originalPublicId,
-        url,
-        publicId: publicId || "",
-        aiStyle,
-        updatedAt: serverTimestamp(),
+        await updateDoc(doc(db, "uploads", selectedEditableUpload.id), {
+          originalUrl,
+          originalPublicId,
+          url,
+          publicId: publicId || "",
+          aiStyle,
+          updatedAt: serverTimestamp(),
+        });
+      }, {
+        attributes: { style_key: aiStyle },
+        metrics: { output_bytes: aiPreviewBlob.size || 0 },
       });
 
       setShowAIEditModal(false);
@@ -1400,21 +1406,27 @@ function UserHomePage() {
     try {
       setUploading(true);
 
-      const { url, publicId } = await uploadToCloudinary(uploadFile);
       const selectedTheme = themeById[uploadTheme];
 
-      await addDoc(collection(db, "uploads"), {
-        title,
-        subtitle,
-        url,
-        publicId: publicId || "",
-        themeId: uploadTheme,
-        themeLabel: selectedTheme?.label || "Custom",
-        ownerUid: user.uid,
-        ownerName: displayName,
-        isShared: false,
-        sharedWith: [],
-        createdAt: serverTimestamp(),
+      await measureTrace("image_upload_total", async () => {
+        const { url, publicId } = await uploadToCloudinary(uploadFile);
+
+        await addDoc(collection(db, "uploads"), {
+          title,
+          subtitle,
+          url,
+          publicId: publicId || "",
+          themeId: uploadTheme,
+          themeLabel: selectedTheme?.label || "Custom",
+          ownerUid: user.uid,
+          ownerName: displayName,
+          isShared: false,
+          sharedWith: [],
+          createdAt: serverTimestamp(),
+        });
+      }, {
+        attributes: { theme_id: uploadTheme },
+        metrics: { file_size_bytes: uploadFile.size || 0 },
       });
 
       setUploadTitle("");
@@ -1800,27 +1812,31 @@ function UserHomePage() {
 
     try {
       setEventUploading(true);
-      const { url, publicId } = await uploadToCloudinary(eventUploadFile);
+      await measureTrace("event_photo_upload_total", async () => {
+        const { url, publicId } = await uploadToCloudinary(eventUploadFile);
 
-      await addDoc(collection(db, "eventPhotos"), {
-        eventId: activeEvent.id,
-        title,
-        subtitle,
-        url,
-        publicId: publicId || "",
-        ownerUid: user.uid,
-        ownerName: displayName,
-        createdAt: serverTimestamp(),
+        await addDoc(collection(db, "eventPhotos"), {
+          eventId: activeEvent.id,
+          title,
+          subtitle,
+          url,
+          publicId: publicId || "",
+          ownerUid: user.uid,
+          ownerName: displayName,
+          createdAt: serverTimestamp(),
+        });
+
+        const eventUpdate = {
+          photoCount: increment(1),
+          updatedAt: serverTimestamp(),
+        };
+        if (!activeEvent.coverPhotoUrl) {
+          eventUpdate.coverPhotoUrl = url;
+        }
+        await updateDoc(doc(db, "events", activeEvent.id), eventUpdate);
+      }, {
+        metrics: { file_size_bytes: eventUploadFile.size || 0 },
       });
-
-      const eventUpdate = {
-        photoCount: increment(1),
-        updatedAt: serverTimestamp(),
-      };
-      if (!activeEvent.coverPhotoUrl) {
-        eventUpdate.coverPhotoUrl = url;
-      }
-      await updateDoc(doc(db, "events", activeEvent.id), eventUpdate);
 
       setEventUploadTitle("");
       setEventUploadDescription("");

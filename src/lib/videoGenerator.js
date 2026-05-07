@@ -1,6 +1,8 @@
 // Generate a slideshow video in the BROWSER using Canvas + MediaRecorder,
 // then upload the resulting blob to Cloudinary.
 
+import { startTrace } from "./telemetry";
+
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
@@ -50,19 +52,38 @@ async function uploadVideoBlobToCloudinary(blob) {
       "Cloudinary not configured. Set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET in .env",
     );
   }
+
+  const fileType = blob?.type || "unknown";
+  const fileSize = blob?.size || 0;
+  const uploadTrace = startTrace("cloudinary_video_upload", {
+    attributes: { file_type: fileType },
+    metrics: { file_size_bytes: fileSize },
+  });
+
   const form = new FormData();
   form.append("file", blob, "slideshow");
   form.append("upload_preset", UPLOAD_PRESET);
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
-    { method: "POST", body: form },
-  );
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Cloudinary upload failed (${res.status}): ${text.slice(0, 240)}`);
+
+  try {
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
+      { method: "POST", body: form },
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Cloudinary upload failed (${res.status}): ${text.slice(0, 240)}`);
+    }
+    const data = await res.json();
+    uploadTrace?.putAttribute("status", "success");
+    uploadTrace?.putMetric("response_bytes", data.bytes || 0);
+    return { videoUrl: data.secure_url, publicId: data.public_id };
+  } catch (err) {
+    uploadTrace?.putAttribute("status", "error");
+    uploadTrace?.putAttribute("error_code", err?.code || err?.name || "error");
+    throw err;
+  } finally {
+    uploadTrace?.stop();
   }
-  const data = await res.json();
-  return { videoUrl: data.secure_url, publicId: data.public_id };
 }
 
 export { TRANSITIONS };
@@ -118,8 +139,24 @@ export async function generateAlbumVideo(
   const requestedTransMs = Math.max(0, Number(options.transitionMs ?? 500));
   const transitionMs = Math.min(requestedTransMs, (secondsPerImage * 1000) / 2);
 
+  const totalTrace = startTrace("generate_album_video_total", {
+    attributes: { aspect_ratio: aspectKey },
+    metrics: {
+      image_count: usable.length,
+      seconds_per_image: secondsPerImage,
+      duration_sec: totalDurationSec,
+      transition_count: perPairTransitions.length,
+    },
+  });
+
+  try {
   // Pre-load images.
   const loadedImages = [];
+  const downloadTrace = startTrace("video_download_images", {
+    attributes: { aspect_ratio: aspectKey },
+    metrics: { image_count: usable.length },
+  });
+  try {
   for (let i = 0; i < usable.length; i++) {
     onProgress?.({
       stage: "downloading",
@@ -130,6 +167,14 @@ export async function generateAlbumVideo(
     const url = scaledCloudinaryUrl(usable[i].url, w, h);
     const img = await loadImage(url);
     loadedImages.push(img);
+  }
+  downloadTrace?.putAttribute("status", "success");
+  } catch (err) {
+    downloadTrace?.putAttribute("status", "error");
+    downloadTrace?.putAttribute("error_code", err?.code || err?.name || "error");
+    throw err;
+  } finally {
+    downloadTrace?.stop();
   }
 
   const canvas = document.createElement("canvas");
@@ -251,40 +296,74 @@ export async function generateAlbumVideo(
     drawTransition(kind, loadedImages[idx], loadedImages[idx + 1], t);
   };
 
-  onProgress?.({ stage: "encoding", ratio: 0 });
-
-  await new Promise((resolve, reject) => {
-    recorder.onstop = resolve;
-    recorder.onerror = (e) => reject(e?.error || new Error("MediaRecorder error"));
-
-    const startTime = performance.now();
-    const totalMs = totalDurationSec * 1000;
-
-    paintFrame(0);
-    recorder.start(200);
-
-    const tick = () => {
-      const elapsed = performance.now() - startTime;
-      paintFrame(Math.min(elapsed, totalMs));
-      onProgress?.({
-        stage: "encoding",
-        ratio: Math.min(elapsed / totalMs, 1),
-      });
-      if (elapsed >= totalMs) {
-        setTimeout(() => {
-          if (recorder.state !== "inactive") recorder.stop();
-        }, 150);
-        return;
-      }
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
+  const encodeTrace = startTrace("video_encode_browser", {
+    attributes: {
+      aspect_ratio: aspectKey,
+      mime_type: mimeType,
+    },
+    metrics: {
+      image_count: usable.length,
+      duration_sec: totalDurationSec,
+      width: w,
+      height: h,
+    },
   });
+  let blob;
 
-  const blob = new Blob(chunks, { type: mimeType.split(";")[0] });
+  try {
+    onProgress?.({ stage: "encoding", ratio: 0 });
+
+    await new Promise((resolve, reject) => {
+      recorder.onstop = resolve;
+      recorder.onerror = (e) => reject(e?.error || new Error("MediaRecorder error"));
+
+      const startTime = performance.now();
+      const totalMs = totalDurationSec * 1000;
+
+      paintFrame(0);
+      recorder.start(200);
+
+      const tick = () => {
+        const elapsed = performance.now() - startTime;
+        paintFrame(Math.min(elapsed, totalMs));
+        onProgress?.({
+          stage: "encoding",
+          ratio: Math.min(elapsed / totalMs, 1),
+        });
+        if (elapsed >= totalMs) {
+          setTimeout(() => {
+            if (recorder.state !== "inactive") recorder.stop();
+          }, 150);
+          return;
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+
+    blob = new Blob(chunks, { type: mimeType.split(";")[0] });
+    encodeTrace?.putAttribute("status", "success");
+    encodeTrace?.putMetric("output_bytes", blob.size || 0);
+    encodeTrace?.putMetric("chunk_count", chunks.length);
+  } catch (err) {
+    encodeTrace?.putAttribute("status", "error");
+    encodeTrace?.putAttribute("error_code", err?.code || err?.name || "error");
+    throw err;
+  } finally {
+    encodeTrace?.stop();
+  }
 
   onProgress?.({ stage: "uploading", ratio: 1 });
   const { videoUrl, publicId } = await uploadVideoBlobToCloudinary(blob);
 
+  totalTrace?.putAttribute("status", "success");
+  totalTrace?.putMetric("output_bytes", blob.size || 0);
   return { videoUrl, publicId, durationSec: totalDurationSec };
+  } catch (err) {
+    totalTrace?.putAttribute("status", "error");
+    totalTrace?.putAttribute("error_code", err?.code || err?.name || "error");
+    throw err;
+  } finally {
+    totalTrace?.stop();
+  }
 }

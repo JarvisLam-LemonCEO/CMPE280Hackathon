@@ -6,6 +6,7 @@
 // at the photos.
 
 import OpenAI from "openai";
+import { startTrace } from "./telemetry";
 
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 
@@ -126,66 +127,85 @@ Rules:
     },
   ];
 
-  const response = await client.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages,
-    tools,
-    tool_choice: { type: "function", function: { name: "compose_video" } },
+  const model = "gpt-4o-mini";
+  const composeTrace = startTrace("ai_compose_video", {
+    attributes: { model },
+    metrics: { photo_count: photos.length },
   });
 
-  const toolCall = response.choices[0]?.message?.tool_calls?.[0];
-  if (!toolCall || toolCall.function.name !== "compose_video") {
-    throw new Error("AI didn't call compose_video.");
-  }
-
-  let parsed;
   try {
-    parsed = JSON.parse(toolCall.function.arguments);
-  } catch (err) {
-    throw new Error("AI response was not valid JSON: " + err.message);
-  }
+    const response = await client.chat.completions.create({
+      model,
+      messages,
+      tools,
+      tool_choice: { type: "function", function: { name: "compose_video" } },
+    });
 
-  const N = photos.length;
-
-  // Validate order: must be a permutation of [0..N-1].
-  const order = Array.isArray(parsed.order) ? parsed.order : [];
-  const seen = new Set();
-  const validOrder = [];
-  for (const i of order) {
-    if (Number.isInteger(i) && i >= 0 && i < N && !seen.has(i)) {
-      seen.add(i);
-      validOrder.push(i);
+    const toolCall = response.choices[0]?.message?.tool_calls?.[0];
+    if (!toolCall || toolCall.function.name !== "compose_video") {
+      throw new Error("AI didn't call compose_video.");
     }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(toolCall.function.arguments);
+    } catch (err) {
+      throw new Error("AI response was not valid JSON: " + err.message);
+    }
+
+    const N = photos.length;
+
+    // Validate order: must be a permutation of [0..N-1].
+    const order = Array.isArray(parsed.order) ? parsed.order : [];
+    const seen = new Set();
+    const validOrder = [];
+    for (const i of order) {
+      if (Number.isInteger(i) && i >= 0 && i < N && !seen.has(i)) {
+        seen.add(i);
+        validOrder.push(i);
+      }
+    }
+    for (let i = 0; i < N; i++) if (!seen.has(i)) validOrder.push(i);
+
+    const secondsPerImage = [2, 3, 5].includes(parsed.secondsPerImage)
+      ? parsed.secondsPerImage
+      : 3;
+    const cappedSeconds =
+      N * secondsPerImage > 60 ? Math.max(2, Math.floor(60 / N)) : secondsPerImage;
+
+    // Transitions: length should be N-1. Pad / truncate as needed.
+    const rawTrans = Array.isArray(parsed.transitions) ? parsed.transitions : [];
+    const transitions = [];
+    for (let i = 0; i < N - 1; i++) {
+      const t = rawTrans[i];
+      transitions.push(TRANSITIONS.includes(t) ? t : "fade");
+    }
+
+    const aspectRatio = ["16:9", "1:1", "9:16"].includes(parsed.aspectRatio)
+      ? parsed.aspectRatio
+      : "16:9";
+
+    composeTrace?.putAttribute("status", "success");
+    composeTrace?.putAttribute("aspect_ratio", aspectRatio);
+    composeTrace?.putMetric("seconds_per_image", cappedSeconds);
+    composeTrace?.putMetric("transition_count", transitions.length);
+
+    return {
+      order: validOrder,
+      secondsPerImage: cappedSeconds,
+      transitions,
+      aspectRatio,
+      title: typeof parsed.title === "string" ? parsed.title.trim() : "",
+      reasoning:
+        typeof parsed.reasoning === "string" ? parsed.reasoning.trim() : "",
+    };
+  } catch (err) {
+    composeTrace?.putAttribute("status", "error");
+    composeTrace?.putAttribute("error_code", err?.code || err?.name || "error");
+    throw err;
+  } finally {
+    composeTrace?.stop();
   }
-  for (let i = 0; i < N; i++) if (!seen.has(i)) validOrder.push(i);
-
-  const secondsPerImage = [2, 3, 5].includes(parsed.secondsPerImage)
-    ? parsed.secondsPerImage
-    : 3;
-  const cappedSeconds =
-    N * secondsPerImage > 60 ? Math.max(2, Math.floor(60 / N)) : secondsPerImage;
-
-  // Transitions: length should be N-1. Pad / truncate as needed.
-  const rawTrans = Array.isArray(parsed.transitions) ? parsed.transitions : [];
-  const transitions = [];
-  for (let i = 0; i < N - 1; i++) {
-    const t = rawTrans[i];
-    transitions.push(TRANSITIONS.includes(t) ? t : "fade");
-  }
-
-  const aspectRatio = ["16:9", "1:1", "9:16"].includes(parsed.aspectRatio)
-    ? parsed.aspectRatio
-    : "16:9";
-
-  return {
-    order: validOrder,
-    secondsPerImage: cappedSeconds,
-    transitions,
-    aspectRatio,
-    title: typeof parsed.title === "string" ? parsed.title.trim() : "",
-    reasoning:
-      typeof parsed.reasoning === "string" ? parsed.reasoning.trim() : "",
-  };
 }
 
 export function isOpenAIConfigured() {

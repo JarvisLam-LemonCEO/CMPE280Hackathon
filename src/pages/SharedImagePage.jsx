@@ -12,6 +12,7 @@ import { allThemeImages } from "../data/galleryData";
 import { db } from "../lib/firebase";
 import { useAuth } from "../lib/AuthContext";
 import { addSharedToGallery } from "../lib/sharing";
+import { measureTrace } from "../lib/telemetry";
 
 const resolveSharedImageLink = (imageId) =>
   `${window.location.origin}/shared/${encodeURIComponent(imageId)}`;
@@ -44,7 +45,9 @@ export default function SharedImagePage() {
       setLoading(true);
 
       try {
-        const snap = await getDoc(doc(db, "uploads", imageId));
+        const snap = await measureTrace("load_shared_image", async () => {
+          return getDoc(doc(db, "uploads", imageId));
+        });
         if (!active) return;
 
         if (snap.exists() && snap.data()?.isShared) {

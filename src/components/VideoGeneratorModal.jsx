@@ -20,6 +20,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { db } from "../lib/firebase";
 import { generateAlbumVideo } from "../lib/videoGenerator";
 import { aiCompose, isOpenAIConfigured } from "../lib/openaiCompose";
+import { measureTrace } from "../lib/telemetry";
 
 const SECONDS_OPTIONS = [2, 3, 5];
 const ASPECT_OPTIONS = [
@@ -229,18 +230,25 @@ export default function VideoGeneratorModal({
     if (!result || !ownerUid || savingDoc || savedId) return;
     setSavingDoc(true);
     try {
-      const ref = await addDoc(collection(db, "videos"), {
-        ownerUid,
-        ownerName: ownerName || "",
-        albumId: album.id,
-        title: aiTitle || `${album.name || album.title || "Album"} – Video`,
-        url: result.videoUrl,
-        publicId: result.publicId,
-        durationSec: result.durationSec,
-        imageIds: orderedPhotos.map((p) => p.id).filter(Boolean),
-        createdAt: Timestamp.now(),
-        isShared: false,
-        sharedWith: [],
+      const ref = await measureTrace("save_generated_video", async () => {
+        return addDoc(collection(db, "videos"), {
+          ownerUid,
+          ownerName: ownerName || "",
+          albumId: album.id,
+          title: aiTitle || `${album.name || album.title || "Album"} – Video`,
+          url: result.videoUrl,
+          publicId: result.publicId,
+          durationSec: result.durationSec,
+          imageIds: orderedPhotos.map((p) => p.id).filter(Boolean),
+          createdAt: Timestamp.now(),
+          isShared: false,
+          sharedWith: [],
+        });
+      }, {
+        metrics: {
+          duration_sec: result.durationSec,
+          photo_count: orderedPhotos.length,
+        },
       });
       setSavedId(ref.id);
     } catch (err) {

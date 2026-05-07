@@ -6,6 +6,7 @@ import { ThemeToggle } from "../ThemeContext";
 import { useAuth } from "../lib/AuthContext";
 import { auth, db } from "../lib/firebase";
 import { uploadToCloudinary } from "../lib/cloudinary";
+import { measureTrace } from "../lib/telemetry";
 
 export default function UserProfile() {
   const navigate = useNavigate();
@@ -61,8 +62,12 @@ export default function UserProfile() {
     if (!selectedFile || !user) return;
     try {
       setUploadingPicture(true);
-      const { url } = await uploadToCloudinary(selectedFile);
-      await updateDoc(doc(db, "users", user.uid), { photoURL: url });
+      await measureTrace("profile_photo_update", async () => {
+        const { url } = await uploadToCloudinary(selectedFile);
+        await updateDoc(doc(db, "users", user.uid), { photoURL: url });
+      }, {
+        metrics: { file_size_bytes: selectedFile.size || 0 },
+      });
       setSelectedFile(null);
       alert("Profile picture updated.");
     } catch (err) {
@@ -76,7 +81,9 @@ export default function UserProfile() {
   const handleDeleteProfilePhoto = async () => {
     if (!user) return;
     try {
-      await updateDoc(doc(db, "users", user.uid), { photoURL: "" });
+      await measureTrace("profile_photo_remove", async () => {
+        await updateDoc(doc(db, "users", user.uid), { photoURL: "" });
+      });
       setSelectedFile(null);
       alert("Profile photo removed.");
     } catch (err) {
@@ -94,7 +101,9 @@ export default function UserProfile() {
     }
     try {
       setSavingDisplayName(true);
-      await updateDoc(doc(db, "users", user.uid), { displayName: trimmed });
+      await measureTrace("profile_name_update", async () => {
+        await updateDoc(doc(db, "users", user.uid), { displayName: trimmed });
+      });
       alert("Display name updated.");
     } catch (err) {
       console.error("update display name failed", err);
@@ -127,9 +136,11 @@ export default function UserProfile() {
 
     try {
       setSavingEmail(true);
-      await updateEmail(auth.currentUser, trimmedEmail);
-      await updateDoc(doc(db, "users", auth.currentUser.uid), {
-        email: trimmedEmail,
+      await measureTrace("profile_email_update", async () => {
+        await updateEmail(auth.currentUser, trimmedEmail);
+        await updateDoc(doc(db, "users", auth.currentUser.uid), {
+          email: trimmedEmail,
+        });
       });
       setShowEmailModal(false);
       alert("Email changed successfully.");
@@ -171,7 +182,9 @@ export default function UserProfile() {
 
     try {
       setSavingPassword(true);
-      await updatePassword(auth.currentUser, newPassword);
+      await measureTrace("profile_password_update", async () => {
+        await updatePassword(auth.currentUser, newPassword);
+      });
       setNewPassword("");
       setConfirmNewPassword("");
       setShowPasswordModal(false);

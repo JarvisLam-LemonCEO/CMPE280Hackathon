@@ -7,6 +7,7 @@ import {
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import { ThemeToggle } from "../ThemeContext";
+import { measureTrace } from "../lib/telemetry";
 
 
 function friendlyAuthError(code) {
@@ -75,11 +76,15 @@ export default function AuthPage() {
 
     try {
       setSubmitting(true);
-      await signInWithEmailAndPassword(
-        auth,
-        loginEmail.trim(),
-        loginPassword,
-      );
+      await measureTrace("auth_login", async () => {
+        await signInWithEmailAndPassword(
+          auth,
+          loginEmail.trim(),
+          loginPassword,
+        );
+      }, {
+        attributes: { method: "password" },
+      });
       navigate(nextPath || "/user-home");
     } catch (err) {
       alert(friendlyAuthError(err?.code));
@@ -103,11 +108,15 @@ export default function AuthPage() {
 
     try {
       setSubmitting(true);
-      await createUserWithEmailAndPassword(
-        auth,
-        signupEmail.trim(),
-        signupPassword,
-      );
+      await measureTrace("auth_sign_up", async () => {
+        await createUserWithEmailAndPassword(
+          auth,
+          signupEmail.trim(),
+          signupPassword,
+        );
+      }, {
+        attributes: { method: "password" },
+      });
       navigate(nextPath || "/user-home");
     } catch (err) {
       alert(friendlyAuthError(err?.code));

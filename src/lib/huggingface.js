@@ -1,4 +1,5 @@
 import { InferenceClient } from "@huggingface/inference";
+import { startTrace } from "./telemetry";
 
 const HF_API_KEY = import.meta.env.VITE_HF_API_KEY;
 const HF_MODEL = "black-forest-labs/FLUX.1-Kontext-dev";
@@ -85,10 +86,24 @@ export async function generateStyledImage(imageFile, styleKey) {
     throw new Error(`Unknown style: ${styleKey}`);
   }
 
-  const imageInput =
-    typeof imageFile === "string" ? await fetch(imageFile).then((res) => res.blob()) : imageFile;
+  const sourceType = typeof imageFile === "string" ? "url" : "file";
+  const generationTrace = startTrace("ai_photo_generate", {
+    attributes: {
+      provider: HF_PROVIDER,
+      model: HF_MODEL,
+      source_type: sourceType,
+      style_key: styleKey,
+    },
+    metrics: {
+      source_bytes: imageFile?.size || 0,
+    },
+  });
 
   try {
+    const imageInput =
+      typeof imageFile === "string" ? await fetch(imageFile).then((res) => res.blob()) : imageFile;
+    generationTrace?.putMetric("source_bytes", imageInput?.size || 0);
+
     const result = await hfClient.imageToImage({
       model: HF_MODEL,
       provider: HF_PROVIDER,
@@ -100,16 +115,19 @@ export async function generateStyledImage(imageFile, styleKey) {
       },
     });
 
-    if (result instanceof Blob) {
-      return result;
-    }
-
-    return new Blob([result]);
+    const outputBlob = result instanceof Blob ? result : new Blob([result]);
+    generationTrace?.putAttribute("status", "success");
+    generationTrace?.putMetric("output_bytes", outputBlob.size || 0);
+    return outputBlob;
   } catch (err) {
+    generationTrace?.putAttribute("status", "error");
+    generationTrace?.putAttribute("error_code", err?.code || err?.name || "error");
     console.error("Style generation failed:", err);
     throw new Error(
       `Failed to generate styled image: ${err.message || "Unknown error"}`
     );
+  } finally {
+    generationTrace?.stop();
   }
 }
 
