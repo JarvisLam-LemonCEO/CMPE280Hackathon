@@ -9,6 +9,8 @@ import {
   Plus,
 } from "lucide-react";
 import { allThemeImages } from "../data/galleryData";
+import FilePreview from "../components/FilePreview";
+import { contentTypeOf } from "../components/fileTypeUtils";
 import { db } from "../lib/firebase";
 import { useAuth } from "../lib/AuthContext";
 import { addSharedToGallery } from "../lib/sharing";
@@ -52,21 +54,50 @@ export default function SharedImagePage() {
         const sharedItem = await measureTrace("load_shared_image", async (activeTrace) => {
           const uploadSnap = await getDoc(doc(db, "uploads", imageId));
           if (uploadSnap.exists() && uploadSnap.data()?.isShared) {
-            activeTrace?.putAttribute("content_type", "image");
+            const data = uploadSnap.data();
+            const mimeType = String(data.mimeType || "").toLowerCase();
+            const normalized = {
+              ...data,
+              resourceType:
+                data.resourceType ||
+                (mimeType.startsWith("video/")
+                  ? "video"
+                  : mimeType.startsWith("image/")
+                    ? "image"
+                    : mimeType
+                      ? "raw"
+                      : "image"),
+              mimeType: data.mimeType || "image/*",
+              originalFilename: data.originalFilename || data.title || "",
+              annotations: data.annotations || [],
+              annotationOverlayUrl: data.annotationOverlayUrl || "",
+            };
+            const contentType = contentTypeOf(normalized);
+            activeTrace?.putAttribute("content_type", contentType);
             return {
               id: uploadSnap.id,
-              contentType: "image",
-              data: uploadSnap.data(),
+              collectionName: "uploads",
+              contentType,
+              data: normalized,
             };
           }
 
           const videoSnap = await getDoc(doc(db, "videos", imageId));
           if (videoSnap.exists() && videoSnap.data()?.isShared) {
+            const data = videoSnap.data();
             activeTrace?.putAttribute("content_type", "video");
             return {
               id: videoSnap.id,
+              collectionName: "videos",
               contentType: "video",
-              data: videoSnap.data(),
+              data: {
+                ...data,
+                resourceType: "video",
+                mimeType: data.mimeType || "video/mp4",
+                originalFilename:
+                  data.originalFilename ||
+                  `${data.title || "generated-video"}.mp4`,
+              },
             };
           }
 
@@ -78,11 +109,12 @@ export default function SharedImagePage() {
           setImage({
             id: sharedItem.id,
             ...sharedItem.data,
-            isGeneratedVideo: sharedItem.contentType === "video",
+            contentType: sharedItem.contentType,
+            isGeneratedVideo: sharedItem.collectionName === "videos",
             themeLabel:
               sharedItem.contentType === "video"
                 ? "Video"
-                : sharedItem.data.themeLabel,
+                : sharedItem.data.themeLabel || "Shared file",
           });
           trackEvent("shared_image_view", {
             source: "public_link",
@@ -111,8 +143,12 @@ export default function SharedImagePage() {
   }, [imageId, themeImage]);
 
   const isThemeImage = Boolean(themeImage);
-  const contentType = image?.isGeneratedVideo ? "video" : "image";
-  const contentLabel = contentType === "video" ? "video" : "photo";
+  const contentType = image?.contentType || contentTypeOf(image);
+  const contentLabel =
+    contentType === "video" ? "video" : contentType === "file" ? "file" : "photo";
+  const storageContentType = image?.isGeneratedVideo ? "video" : "image";
+  const openFileLabel =
+    contentType === "file" ? "Open file" : `Open ${contentLabel} file`;
   const isOwner = Boolean(user && image?.ownerUid && image.ownerUid === user.uid);
   const alreadyAdded = Boolean(
     user && Array.isArray(image?.sharedWith) && image.sharedWith.includes(user.uid),
@@ -134,7 +170,7 @@ export default function SharedImagePage() {
       const result = await addSharedToGallery({
         uploadId: image.id,
         currentUid: user.uid,
-        contentType,
+        contentType: storageContentType,
       });
       if (!result.ok) {
         if (result.reason === "already-added") {
@@ -250,20 +286,13 @@ export default function SharedImagePage() {
 
         <article className="overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200 dark:bg-[#222b45] dark:ring-slate-700 sm:rounded-[32px] lg:grid lg:grid-cols-[minmax(0,1.4fr)_420px]">
           <div className="flex items-center justify-center bg-black">
-            {image.isGeneratedVideo ? (
-              <video
-                src={image.url}
-                controls
-                autoPlay
-                className="max-h-[60vh] w-full bg-black object-contain lg:max-h-[75vh]"
-              />
-            ) : (
-              <img
-                src={image.url}
-                alt={image.title}
-                className="h-auto max-h-[60vh] w-full object-contain lg:max-h-[75vh] lg:object-cover"
-              />
-            )}
+            <FilePreview
+              file={image}
+              alt={image.title}
+              fit="contain"
+              className="h-[60vh] w-full bg-black lg:h-[75vh]"
+              heightClass="h-[60vh] lg:h-[75vh]"
+            />
           </div>
 
           <div className="flex flex-col justify-between p-5 sm:p-8">
@@ -281,6 +310,11 @@ export default function SharedImagePage() {
               {image.ownerName && (
                 <p className="mt-4 text-sm font-medium text-slate-500 dark:text-slate-400">
                   Shared by {image.ownerName}
+                </p>
+              )}
+              {image.originalFilename && (
+                <p className="mt-2 break-all text-sm text-slate-500 dark:text-slate-400">
+                  File: {image.originalFilename}
                 </p>
               )}
             </div>
@@ -347,7 +381,7 @@ export default function SharedImagePage() {
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 <ExternalLink size={16} />
-                Open {contentLabel} file
+                {openFileLabel}
               </a>
             </div>
           </div>

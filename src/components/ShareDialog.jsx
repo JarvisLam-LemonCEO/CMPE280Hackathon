@@ -7,6 +7,7 @@ import {
   getUsersByUids,
 } from "../lib/sharing";
 import { trackEvent } from "../lib/telemetry";
+import { contentTypeOf } from "./fileTypeUtils";
 
 function Avatar({ user, size = 32 }) {
   const initial = (
@@ -74,8 +75,10 @@ export default function ShareDialog({
   const isOwner = Boolean(
     currentUser?.uid && upload?.ownerUid && currentUser.uid === upload.ownerUid,
   );
-  const contentType = upload?.isGeneratedVideo ? "video" : "image";
-  const contentLabel = contentType === "video" ? "video" : "photo";
+  const contentType = contentTypeOf(upload);
+  const contentLabel =
+    contentType === "video" ? "video" : contentType === "file" ? "file" : "photo";
+  const storageContentType = upload?.isGeneratedVideo ? "video" : "image";
 
   const sharedWithKey = (upload?.sharedWith ?? []).join(",");
 
@@ -173,7 +176,7 @@ export default function ShareDialog({
         uploadId: upload.id,
         ownerUid: currentUser.uid,
         recipientEmail: email,
-        contentType,
+        contentType: storageContentType,
       });
 
       if (!result.ok) {
@@ -231,7 +234,7 @@ export default function ShareDialog({
   const handleRemoveViewer = async (uid) => {
     if (!isOwner) return;
     try {
-      await unshareWithUser(upload.id, uid, contentType);
+      await unshareWithUser(upload.id, uid, storageContentType);
       setPeople((prev) => prev.filter((p) => p.uid !== uid));
       trackEvent("share_remove_viewer", { content_type: contentType });
     } catch (err) {
@@ -248,7 +251,7 @@ export default function ShareDialog({
     if (!isOwner) return;
     if (Boolean(upload.isShared) === Boolean(nextIsShared)) return;
     try {
-      await setIsShared(upload.id, Boolean(nextIsShared), contentType);
+      await setIsShared(upload.id, Boolean(nextIsShared), storageContentType);
       trackEvent("share_access_update", {
         content_type: contentType,
         is_shared: Boolean(nextIsShared),

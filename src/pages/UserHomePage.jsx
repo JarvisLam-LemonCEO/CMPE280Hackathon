@@ -27,6 +27,8 @@ import { uploadToCloudinary } from "../lib/cloudinary";
 import { generateStyledImage, AI_STYLES, isHFConfigured } from "../lib/huggingface";
 import { findUidByEmail, getUsersByUids, removeFromMyGallery } from "../lib/sharing";
 import { measureTrace, startTrace, trackEvent } from "../lib/telemetry";
+import FilePreview from "../components/FilePreview";
+import { isImg } from "../components/fileTypeUtils";
 import ShareDialog from "../components/ShareDialog";
 import VideoGeneratorModal from "../components/VideoGeneratorModal";
 import {
@@ -111,9 +113,10 @@ const SortableAlbumPhotoCard = ({
       }`}
     >
       <div className="relative">
-        <img
-          src={image.url}
+        <FilePreview
+          file={image}
           alt={image.title}
+          interactive
           onClick={() => {
             if (!isDragging) setDetailImage(image);
           }}
@@ -212,6 +215,15 @@ const toMillis = (value) => {
   return 0;
 };
 
+const resourceTypeFromData = (data = {}) => {
+  if (data.resourceType) return data.resourceType;
+  const mimeType = String(data.mimeType || "").toLowerCase();
+  if (mimeType.startsWith("video/")) return "video";
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType) return "raw";
+  return "image";
+};
+
 const formatCommentDate = (timestamp) => {
   const ms = toMillis(timestamp);
   if (!ms) return "just now";
@@ -248,6 +260,10 @@ const mapVideoDoc = (docSnap, isSharedWithMe = false) => {
       : "Generated video",
     url: data.url,
     publicId: data.publicId,
+    resourceType: "video",
+    mimeType: data.mimeType || "video/mp4",
+    originalFilename: data.originalFilename || `${data.title || "generated-video"}.mp4`,
+    bytes: data.bytes || 0,
     albumId: data.albumId || "",
     imageIds: data.imageIds || [],
     themeId: "generated-video",
@@ -261,6 +277,31 @@ const mapVideoDoc = (docSnap, isSharedWithMe = false) => {
     isGeneratedVideo: true,
     isSharedWithMe,
   };
+};
+
+const runWithConcurrency = async (items, worker, limit = 2) => {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  const runner = async () => {
+    while (nextIndex < items.length) {
+      const current = nextIndex;
+      nextIndex += 1;
+      try {
+        results[current] = {
+          status: "fulfilled",
+          value: await worker(items[current], current),
+        };
+      } catch (err) {
+        results[current] = { status: "rejected", reason: err };
+      }
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, () => runner()),
+  );
+  return results;
 };
 
 const eventInviteId = (eventId, uid) => `${eventId}_${uid}`;
@@ -453,16 +494,14 @@ const PhotoDetailModal = ({
         )}
 
         <div className="photo-modal-image-panel">
-          {image.isGeneratedVideo ? (
-            <video
-              src={image.url}
-              controls
-              autoPlay
-              className="h-80 w-full bg-black object-contain lg:h-full"
-            />
-          ) : (
-            <img src={image.url} alt={image.title} className="photo-modal-img" />
-          )}
+          <FilePreview
+            file={image}
+            alt={image.title}
+            editor={!image.isGeneratedVideo}
+            fit="contain"
+            heightClass="h-full"
+            className="h-80 w-full lg:h-full"
+          />
         </div>
 
         <div className="photo-modal-info-panel">
@@ -537,7 +576,8 @@ function UserHomePage() {
   const [uploadTheme, setUploadTheme] = useState(themeData[0]?.id || "nature");
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploadDescription, setUploadDescription] = useState("");
-  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadFiles, setUploadFiles] = useState([]);
+  const [uploadGroupName, setUploadGroupName] = useState("");
   const [eventUploadTitle, setEventUploadTitle] = useState("");
   const [eventUploadDescription, setEventUploadDescription] = useState("");
   const [eventUploadFile, setEventUploadFile] = useState(null);
@@ -614,7 +654,9 @@ function UserHomePage() {
   const selectedEditableUploads = useMemo(
     () => {
       const allImages = [...uploadedImages, ...flatThemeImages];
-      return allImages.filter((image) => selectedIds.has(image.id));
+      return allImages.filter(
+        (image) => selectedIds.has(image.id) && isImg(image),
+      );
     },
     [uploadedImages, flatThemeImages, selectedIds],
   );
@@ -696,6 +738,16 @@ function UserHomePage() {
               subtitle: data.subtitle,
               url: data.url,
               publicId: data.publicId,
+              resourceType: resourceTypeFromData(data),
+              mimeType: data.mimeType || "image/*",
+              originalFilename: data.originalFilename || data.title || "",
+              bytes: data.bytes || 0,
+              groupId: data.groupId || "",
+              groupName: data.groupName || "",
+              originalUrl: data.originalUrl || "",
+              originalPublicId: data.originalPublicId || "",
+              annotations: data.annotations || [],
+              annotationOverlayUrl: data.annotationOverlayUrl || "",
               themeId: data.themeId,
               themeLabel: data.themeLabel,
               createdAt: toMillis(data.createdAt),
@@ -739,6 +791,16 @@ function UserHomePage() {
               subtitle: data.subtitle,
               url: data.url,
               publicId: data.publicId,
+              resourceType: resourceTypeFromData(data),
+              mimeType: data.mimeType || "image/*",
+              originalFilename: data.originalFilename || data.title || "",
+              bytes: data.bytes || 0,
+              groupId: data.groupId || "",
+              groupName: data.groupName || "",
+              originalUrl: data.originalUrl || "",
+              originalPublicId: data.originalPublicId || "",
+              annotations: data.annotations || [],
+              annotationOverlayUrl: data.annotationOverlayUrl || "",
               themeId: data.themeId,
               themeLabel: data.themeLabel,
               createdAt: toMillis(data.createdAt),
@@ -1357,6 +1419,7 @@ function UserHomePage() {
         ...album,
         count: relations.length,
         coverUrl: coverImage?.url || "",
+        coverImage,
       };
     });
   }, [albums, albumPhotos, allPhotosMap]);
@@ -1592,13 +1655,26 @@ function UserHomePage() {
         const originalUrl = selectedEditableUpload.originalUrl || selectedEditableUpload.url;
         const originalPublicId =
           selectedEditableUpload.originalPublicId || selectedEditableUpload.publicId || "";
-        const { url, publicId } = await uploadToCloudinary(aiPreviewBlob);
+        const {
+          url,
+          publicId,
+          resourceType,
+          mimeType,
+          originalFilename,
+          bytes,
+        } = await uploadToCloudinary(aiPreviewBlob);
 
         await updateDoc(doc(db, "uploads", selectedEditableUpload.id), {
           originalUrl,
           originalPublicId,
           url,
           publicId: publicId || "",
+          resourceType: resourceType || "image",
+          mimeType: mimeType || "image/png",
+          originalFilename:
+            originalFilename ||
+            `${selectedEditableUpload.title || "edited-image"}.png`,
+          bytes: bytes || aiPreviewBlob.size || 0,
           aiStyle,
           updatedAt: serverTimestamp(),
         });
@@ -1624,62 +1700,160 @@ function UserHomePage() {
     }
   };
 
+  const handleRemoveUploadFile = (indexToRemove) => {
+    setUploadFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
+  };
+
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
 
     const title = uploadTitle.trim();
     const subtitle = uploadDescription.trim();
+    const groupName = uploadGroupName.trim();
 
-    if (!user || !uploadFile || !title || !subtitle) return;
+    if (!user || !title || !subtitle || uploadFiles.length === 0) return;
 
     try {
       setUploading(true);
-      trackEvent("image_upload_start", {
-        file_type: uploadFile.type || "unknown",
-        file_size_bytes: uploadFile.size || 0,
+      const totalBytes = uploadFiles.reduce((sum, file) => sum + (file.size || 0), 0);
+      trackEvent("file_upload_start", {
+        file_count: uploadFiles.length,
+        total_file_size_bytes: totalBytes,
         theme_id: uploadTheme,
       });
 
       const selectedTheme = themeById[uploadTheme];
+      const shouldCreateAlbum = uploadFiles.length > 1;
+      let createdAlbumId = "";
+      let createdGroupName = "";
 
-      await measureTrace("image_upload_total", async () => {
-        const { url, publicId } = await uploadToCloudinary(uploadFile);
-
-        await addDoc(collection(db, "uploads"), {
-          title,
-          subtitle,
-          url,
-          publicId: publicId || "",
-          themeId: uploadTheme,
-          themeLabel: selectedTheme?.label || "Custom",
+      if (shouldCreateAlbum) {
+        const albumRef = await addDoc(collection(db, "albums"), {
           ownerUid: user.uid,
           ownerName: displayName,
-          isShared: false,
-          sharedWith: [],
+          name: groupName || title,
+          coverPhotoId: "",
           createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
         });
+        createdAlbumId = albumRef.id;
+        createdGroupName = groupName || title;
+      }
+
+      const uploadedDocIds = [];
+      const failures = [];
+
+      await measureTrace("file_upload_total", async (activeTrace) => {
+        activeTrace?.putMetric("file_count", uploadFiles.length);
+        activeTrace?.putMetric("total_file_size_bytes", totalBytes);
+        const results = await runWithConcurrency(
+          uploadFiles,
+          async (currentFile, index) => {
+            const uploadResult = await uploadToCloudinary(currentFile);
+            const itemTitle =
+              uploadFiles.length === 1 ? title : `${title} ${index + 1}`;
+            const uploadRef = await addDoc(collection(db, "uploads"), {
+              title: itemTitle,
+              subtitle,
+              url: uploadResult.url,
+              publicId: uploadResult.publicId || "",
+              resourceType: uploadResult.resourceType || "raw",
+              mimeType:
+                uploadResult.mimeType ||
+                currentFile.type ||
+                "application/octet-stream",
+              originalFilename:
+                uploadResult.originalFilename || currentFile.name || itemTitle,
+              bytes:
+                typeof uploadResult.bytes === "number"
+                  ? uploadResult.bytes
+                  : currentFile.size || 0,
+              groupId: createdAlbumId,
+              groupName: createdGroupName,
+              themeId: uploadTheme,
+              themeLabel: selectedTheme?.label || "Custom",
+              ownerUid: user.uid,
+              ownerName: displayName,
+              isShared: false,
+              sharedWith: [],
+              annotations: [],
+              createdAt: serverTimestamp(),
+            });
+
+            if (createdAlbumId) {
+              await addDoc(collection(db, "albumPhotos"), {
+                albumId: createdAlbumId,
+                photoId: uploadRef.id,
+                ownerUid: user.uid,
+                order: index,
+                addedAt: serverTimestamp(),
+              });
+            }
+
+            return uploadRef.id;
+          },
+          2,
+        );
+
+        results.forEach((result, index) => {
+          if (result?.status === "fulfilled") {
+            uploadedDocIds.push(result.value);
+          } else if (result?.status === "rejected") {
+            failures.push({
+              fileName: uploadFiles[index]?.name || `File ${index + 1}`,
+              message: result.reason?.message || "Upload failed",
+            });
+          }
+        });
+
+        if (createdAlbumId && uploadedDocIds.length > 0) {
+          await updateDoc(doc(db, "albums", createdAlbumId), {
+            coverPhotoId: uploadedDocIds[0],
+            updatedAt: serverTimestamp(),
+          });
+        }
       }, {
         attributes: { theme_id: uploadTheme },
-        metrics: { file_size_bytes: uploadFile.size || 0 },
+        metrics: {
+          file_count: uploadFiles.length,
+          total_file_size_bytes: totalBytes,
+        },
       });
+
+      if (failures.length > 0) {
+        const failedNames = failures
+          .slice(0, 3)
+          .map((failure) => failure.fileName)
+          .join(", ");
+        showToast(`Some files failed: ${failedNames}`, "error");
+      } else {
+        showToast(
+          uploadFiles.length > 1
+            ? `Uploaded ${uploadFiles.length} files.`
+            : "File uploaded.",
+          "success",
+        );
+      }
 
       setUploadTitle("");
       setUploadDescription("");
-      setUploadFile(null);
+      setUploadFiles([]);
+      setUploadGroupName("");
       setUploadTheme(themeData[0]?.id || "nature");
       setShowUploadModal(false);
-      trackEvent("image_upload_success", {
-        file_type: uploadFile.type || "unknown",
-        file_size_bytes: uploadFile.size || 0,
+      trackEvent("file_upload_success", {
+        file_count: uploadedDocIds.length,
+        failed_count: failures.length,
+        total_file_size_bytes: totalBytes,
         theme_id: uploadTheme,
       });
     } catch (err) {
       console.error("upload submit failed", err);
-      trackEvent("image_upload_failed", {
-        file_type: uploadFile.type || "unknown",
+      trackEvent("file_upload_failed", {
+        file_count: uploadFiles.length,
         error_code: err?.code || err?.name || "error",
       });
-      alert(err?.message || "Could not upload image.");
+      alert(err?.message || "Could not upload files.");
     } finally {
       setUploading(false);
     }
@@ -3011,22 +3185,13 @@ const handleAlbumDragEnd = async (event) => {
 	                    }`}
                   >
                     <div className="relative">
-                      {image.isGeneratedVideo ? (
-                        <video
-                          src={image.url}
-                          preload="metadata"
-                          playsInline
-                          onClick={() => setDetailImage(image)}
-                          className="h-48 w-full cursor-pointer bg-black object-contain transition hover:brightness-90 sm:h-56 lg:h-60"
-                        />
-                      ) : (
-                        <img
-                          src={image.url}
-                          alt={image.title}
-                          onClick={() => setDetailImage(image)}
-                          className="gallery-card-img"
-                        />
-                      )}
+                      <FilePreview
+                        file={image}
+                        alt={image.title}
+                        interactive
+                        onClick={() => setDetailImage(image)}
+                        className="gallery-card-img"
+                      />
                       {canManageImage && (
                         <input
                           type="checkbox"
@@ -3166,11 +3331,12 @@ const handleAlbumDragEnd = async (event) => {
                     className="overflow-hidden rounded-3xl bg-white text-left ring-2 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-[#2a3655] dark:ring-slate-700"
                   >
                     <div className="aspect-[4/3] w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
-                      {album.coverUrl ? (
-                        <img
-                          src={album.coverUrl}
+                      {album.coverImage ? (
+                        <FilePreview
+                          file={album.coverImage}
                           alt={album.name}
-                          className="h-full w-full object-cover"
+                          className="h-full w-full"
+                          fit="cover"
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-slate-400">
@@ -3479,9 +3645,11 @@ const handleAlbumDragEnd = async (event) => {
           <div className="modal-overlay">
             <div className="max-h-[92vh] w-full max-w-125 overflow-y-auto rounded-[24px] bg-white p-5 shadow-xl dark:bg-[#2a3655] sm:rounded-[28px] sm:p-8">
               <h2 className="text-[24px] font-bold text-[#0f172f] dark:text-white">
-                Upload Image
+                Upload Files
               </h2>
-              <p className="modal-subtitle">Add a new image to the gallery.</p>
+              <p className="modal-subtitle">
+                Add one or more files to your gallery. Multi-file uploads create an album automatically.
+              </p>
 
               <form className="mt-6 space-y-4" onSubmit={handleUploadSubmit}>
                 <div>
@@ -3509,17 +3677,68 @@ const handleAlbumDragEnd = async (event) => {
                 </div>
 
                 <div>
-                  <label className="form-label">Image File</label>
+                  <label className="form-label">Files</label>
                   <input
                     type="file"
-                    accept="image/*"
-                    onChange={(e) => setUploadFile(e.target.files[0] || null)}
+                    multiple
+                    accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx,.pps,.ppsx,.xls,.xlsx,.csv,.txt,.md,.json,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.cs,.zip,.rar"
+                    onChange={(e) => {
+                      const newFiles = Array.from(e.target.files || []);
+                      setUploadFiles((prev) => {
+                        const merged = [...prev];
+                        newFiles.forEach((file) => {
+                          const exists = merged.some(
+                            (existing) =>
+                              existing.name === file.name &&
+                              existing.size === file.size &&
+                              existing.lastModified === file.lastModified,
+                          );
+                          if (!exists) merged.push(file);
+                        });
+                        return merged;
+                      });
+                      e.target.value = "";
+                    }}
                     className="w-full text-sm text-slate-700"
-                    required
                   />
+                  {uploadFiles.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {uploadFiles.map((file, index) => (
+                        <div
+                          key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+                          className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-slate-700 dark:border-slate-700 dark:text-slate-200"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{file.name}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              {(file.size / (1024 * 1024)).toFixed(2)} MB
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveUploadFile(index)}
+                            className="ml-3 text-sm font-semibold text-red-600 hover:underline dark:text-red-400"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    You can apply AI styles later from the top toolbar after selecting an uploaded photo.
+                    Upload images, videos, PDFs, docs, slides, spreadsheets, code files, and archives.
                   </p>
+                </div>
+
+                <div>
+                  <label className="form-label">Group / Album Name (optional)</label>
+                  <input
+                    type="text"
+                    placeholder="Used when uploading more than one file"
+                    value={uploadGroupName}
+                    onChange={(e) => setUploadGroupName(e.target.value)}
+                    className="form-input"
+                  />
                 </div>
 
                 <div>
@@ -3540,7 +3759,11 @@ const handleAlbumDragEnd = async (event) => {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => setShowUploadModal(false)}
+                    onClick={() => {
+                      setShowUploadModal(false);
+                      setUploadFiles([]);
+                      setUploadGroupName("");
+                    }}
                     disabled={uploading}
                     className="h-12 w-1/2 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
                   >
@@ -3548,7 +3771,12 @@ const handleAlbumDragEnd = async (event) => {
                   </button>
                   <button
                     type="submit"
-                    disabled={uploading}
+                    disabled={
+                      uploading ||
+                      uploadFiles.length === 0 ||
+                      !uploadTitle.trim() ||
+                      !uploadDescription.trim()
+                    }
                     className="h-12 w-1/2 rounded-2xl bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
                   >
                     {uploading ? "Uploading..." : "Upload"}
