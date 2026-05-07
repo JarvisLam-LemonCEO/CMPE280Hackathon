@@ -188,46 +188,52 @@ export default function SharedImagePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] px-6 py-10 text-slate-900 dark:bg-[#1a2035] dark:text-white sm:px-10 lg:px-16">
+    <main className="min-h-screen bg-[#f6f7fb] px-4 py-6 text-slate-900 dark:bg-[#1a2035] dark:text-white sm:px-10 sm:py-10 lg:px-16">
       <section className="page-container">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 sm:mb-6">
           <Link
             to="/"
             className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
           >
             <ArrowLeft size={16} />
-            <span>Back to PixelVault</span>
+            <span className="hidden sm:inline">Back to PixelVault</span>
+            <span className="sm:hidden">Back</span>
           </Link>
 
           <button onClick={handleCopyLink} className="btn-primary-sm">
             <span className="inline-flex items-center gap-2">
               <Copy size={16} />
-              {copyState === "copied"
-                ? "Link copied"
-                : copyState === "error"
-                  ? "Copy failed"
-                  : "Copy share link"}
+              <span className="hidden sm:inline">
+                {copyState === "copied"
+                  ? "Link copied"
+                  : copyState === "error"
+                    ? "Copy failed"
+                    : "Copy share link"}
+              </span>
+              <span className="sm:hidden">
+                {copyState === "copied" ? "Copied" : "Copy link"}
+              </span>
             </span>
           </button>
         </div>
 
-        <article className="overflow-hidden rounded-[32px] bg-white shadow-sm ring-1 ring-slate-200 dark:bg-[#222b45] dark:ring-slate-700 lg:grid lg:grid-cols-[minmax(0,1.4fr)_420px]">
-          <div className="bg-black">
+        <article className="overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200 dark:bg-[#222b45] dark:ring-slate-700 sm:rounded-[32px] lg:grid lg:grid-cols-[minmax(0,1.4fr)_420px]">
+          <div className="flex items-center justify-center bg-black">
             <img
               src={image.url}
               alt={image.title}
-              className="h-full max-h-[75vh] w-full object-cover"
+              className="h-auto max-h-[60vh] w-full object-contain lg:max-h-[75vh] lg:object-cover"
             />
           </div>
 
-          <div className="flex flex-col justify-between p-8">
+          <div className="flex flex-col justify-between p-5 sm:p-8">
             <div>
               <span className="card-theme-badge">{image.themeLabel}</span>
-              <h1 className="mt-4 text-3xl font-bold text-[#0f172f] dark:text-white">
+              <h1 className="mt-3 text-2xl font-bold text-[#0f172f] dark:text-white sm:mt-4 sm:text-3xl">
                 {image.title}
               </h1>
               {image.subtitle && (
-                <p className="mt-3 text-[16px] leading-7 text-[#64748b] dark:text-slate-400">
+                <p className="mt-3 text-[15px] leading-6 text-[#64748b] dark:text-slate-400 sm:text-[16px] sm:leading-7">
                   {image.subtitle}
                 </p>
               )}
@@ -239,7 +245,7 @@ export default function SharedImagePage() {
               )}
             </div>
 
-            <div className="mt-8 space-y-3">
+            <div className="mt-6 space-y-3 sm:mt-8">
               {!isThemeImage && !authLoading && (
                 <>
                   {!user ? (

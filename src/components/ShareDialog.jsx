@@ -286,7 +286,7 @@ export default function ShareDialog({
         className="flex max-h-[90vh] w-full max-w-[480px] flex-col overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-slate-200 dark:bg-[#2a3655] dark:ring-slate-700"
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-2">
+        <div className="flex items-start justify-between gap-4 px-5 pt-5 pb-2 sm:px-6 sm:pt-6">
           <div className="min-w-0">
             <h2 className="truncate text-xl font-bold text-[#0f172f] dark:text-white">
               Share &ldquo;{upload.title}&rdquo;
@@ -306,7 +306,7 @@ export default function ShareDialog({
         </div>
 
         {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6">
           {/* Add by email row */}
           {isOwner && (
             <form onSubmit={handleAddByEmail} className="mb-2">
@@ -457,7 +457,7 @@ export default function ShareDialog({
 
               {accessOpen && isOwner && (
                 <div
-                  className="absolute left-12 top-10 z-10 w-72 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-slate-200 dark:bg-[#222b45] dark:ring-slate-700"
+                  className="absolute left-12 right-0 top-10 z-10 max-w-[18rem] overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-slate-200 dark:bg-[#222b45] dark:ring-slate-700 sm:right-auto sm:w-72"
                 >
                   <button
                     type="button"
@@ -508,7 +508,7 @@ export default function ShareDialog({
         <div className="border-t border-slate-200 dark:border-slate-700" />
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 px-6 py-4">
+        <div className="flex items-center justify-between gap-3 px-5 py-4 sm:px-6">
           <button
             type="button"
             onClick={handleCopyLink}

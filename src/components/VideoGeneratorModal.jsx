@@ -292,7 +292,7 @@ export default function VideoGeneratorModal({
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
-        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-[#2a3655] p-6 shadow-xl ring-1 ring-slate-200 dark:ring-slate-700"
+        className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white dark:bg-[#2a3655] p-5 shadow-xl ring-1 ring-slate-200 dark:ring-slate-700 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -319,8 +319,8 @@ export default function VideoGeneratorModal({
           <div className="mt-5 space-y-5">
             {/* AI Auto-compose */}
             {isOpenAIConfigured() && photoCount >= 2 && (
-              <div className="rounded-xl border border-indigo-200 bg-linear-to-br from-indigo-50 to-fuchsia-50 p-4 dark:border-indigo-900/60 dark:from-indigo-950/40 dark:to-fuchsia-950/40">
-                <div className="flex items-start justify-between gap-3">
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/40">
+                <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 text-sm font-semibold text-indigo-700 dark:text-indigo-300">
                       <Sparkles size={16} />
@@ -516,7 +516,7 @@ export default function VideoGeneratorModal({
                     items={orderedPhotos.map((p) => p.id || p.publicId)}
                     strategy={rectSortingStrategy}
                   >
-                    <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
+                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
                       {orderedPhotos.map((p, i) => (
                         <SortableThumb key={p.id || p.publicId} photo={p} index={i} />
                       ))}

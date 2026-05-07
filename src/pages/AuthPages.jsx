@@ -49,7 +49,7 @@ export default function AuthPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const inputClass =
-    "h-14 w-full rounded-[20px] border border-slate-200 dark:border-slate-400 bg-white dark:bg-slate-800 px-14 pr-12 text-[16px] text-slate-700 dark:text-slate-200 outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500";
+    "h-12 w-full rounded-[16px] border border-slate-200 dark:border-slate-400 bg-white dark:bg-slate-800 pl-12 pr-12 text-[15px] text-slate-700 dark:text-slate-200 outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[#28457a] focus:ring-2 focus:ring-[#28457a]/20 sm:h-14 sm:rounded-[20px] sm:text-[16px]";
 
   const resetVisibility = () => {
     setShowPassword(false);
@@ -138,18 +138,18 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-[#f3f3f3] dark:bg-[#1a2035] px-6">
+    <div className="flex min-h-screen w-full items-center justify-center bg-[#f3f3f3] dark:bg-[#1a2035] px-4 py-8 sm:px-6">
       {/* Theme toggle fixed top-right */}
       <div className="fixed top-4 right-4 z-50">
         <ThemeToggle />
       </div>
 
-      <div className="w-full max-w-130 rounded-4xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#222b45] p-10 shadow-xl">
-        <div className="mb-10 flex w-full rounded-[18px] bg-[#e9edf2] dark:bg-slate-800 p-1">
+      <div className="w-full max-w-130 rounded-3xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#222b45] p-6 shadow-xl sm:rounded-4xl sm:p-10">
+        <div className="mb-8 flex w-full rounded-[16px] bg-[#e9edf2] dark:bg-slate-800 p-1 sm:mb-10 sm:rounded-[18px]">
           <button
             type="button"
             onClick={goToLogin}
-            className={`h-13.5 w-1/2 rounded-2xl font-semibold transition ${
+            className={`h-11 w-1/2 rounded-xl text-sm font-semibold transition sm:h-13.5 sm:rounded-2xl sm:text-base ${
               mode === "login"
                 ? "bg-white dark:bg-slate-700 text-[#0f172f] dark:text-white shadow"
                 : "text-[#64748b] dark:text-slate-400"
@@ -161,7 +161,7 @@ export default function AuthPage() {
           <button
             type="button"
             onClick={goToSignup}
-            className={`h-13.5 w-1/2 rounded-2xl font-semibold transition ${
+            className={`h-11 w-1/2 rounded-xl text-sm font-semibold transition sm:h-13.5 sm:rounded-2xl sm:text-base ${
               mode === "signup"
                 ? "bg-white dark:bg-slate-700 text-[#0f172f] dark:text-white shadow"
                 : "text-[#64748b] dark:text-slate-400"
@@ -173,20 +173,20 @@ export default function AuthPage() {
 
         {mode === "login" && (
           <>
-            <h1 className="text-center text-[40px] font-bold text-[#0f172f] dark:text-white">
+            <h1 className="text-center text-[28px] font-bold text-[#0f172f] dark:text-white sm:text-[40px]">
               Welcome back
             </h1>
-            <p className="mt-3 text-center text-[#7183a0] dark:text-slate-400">
+            <p className="mt-2 text-center text-sm text-[#7183a0] dark:text-slate-400 sm:mt-3 sm:text-base">
               Log in to access your image gallery dashboard.
             </p>
 
-            <form className="mt-10 space-y-6" onSubmit={handleLogin}>
+            <form className="mt-8 space-y-5 sm:mt-10 sm:space-y-6" onSubmit={handleLogin}>
               <div>
                 <label className="mb-2 block font-medium text-[#324767] dark:text-slate-300">
                   Email
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Mail size={20} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="email"
                     placeholder="Enter your email"
@@ -202,7 +202,7 @@ export default function AuthPage() {
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Lock size={20} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
@@ -234,7 +234,7 @@ export default function AuthPage() {
                 <button
                   type="button"
                   onClick={() => navigate("/")}
-                  className="h-14 w-1/2 rounded-[22px] border border-slate-300 dark:border-slate-600 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                  className="h-12 w-1/2 rounded-[16px] border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-14 sm:rounded-[22px] sm:text-base"
                 >
                   Cancel
                 </button>
@@ -242,7 +242,7 @@ export default function AuthPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="h-14 w-1/2 rounded-[22px] bg-[#000d33] font-semibold text-white hover:bg-[#00154d] disabled:opacity-60"
+                  className="h-12 w-1/2 rounded-[16px] bg-[#000d33] text-sm font-semibold text-white transition hover:bg-[#00154d] disabled:opacity-60 sm:h-14 sm:rounded-[22px] sm:text-base"
                 >
                   {submitting ? "Logging in..." : "Log In"}
                 </button>
@@ -253,20 +253,20 @@ export default function AuthPage() {
 
         {mode === "signup" && (
           <>
-            <h1 className="text-center text-[40px] font-bold text-[#0f172f] dark:text-white">
+            <h1 className="text-center text-[28px] font-bold text-[#0f172f] dark:text-white sm:text-[40px]">
               Create account
             </h1>
-            <p className="mt-3 text-center text-[#7183a0] dark:text-slate-400">
+            <p className="mt-2 text-center text-sm text-[#7183a0] dark:text-slate-400 sm:mt-3 sm:text-base">
               Sign up to create your gallery account.
             </p>
 
-            <form className="mt-10 space-y-6" onSubmit={handleSignup}>
+            <form className="mt-8 space-y-5 sm:mt-10 sm:space-y-6" onSubmit={handleSignup}>
               <div>
                 <label className="mb-2 block font-medium text-[#324767] dark:text-slate-300">
                   Email
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Mail size={20} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="email"
                     placeholder="Enter your email"
@@ -282,7 +282,7 @@ export default function AuthPage() {
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Lock size={20} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type={showPassword ? "text" : "password"}
                     placeholder="Create password"
@@ -305,7 +305,7 @@ export default function AuthPage() {
                   Confirm Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Lock size={20} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type={showConfirmPassword ? "text" : "password"}
                     placeholder="Confirm password"
@@ -333,7 +333,7 @@ export default function AuthPage() {
                 <button
                   type="button"
                   onClick={() => navigate("/")}
-                  className="h-14 w-1/2 rounded-[22px] border border-slate-300 dark:border-slate-600 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                  className="h-12 w-1/2 rounded-[16px] border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-14 sm:rounded-[22px] sm:text-base"
                 >
                   Cancel
                 </button>
@@ -341,7 +341,7 @@ export default function AuthPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="h-14 w-1/2 rounded-[22px] bg-[#000d33] font-semibold text-white hover:bg-[#00154d] disabled:opacity-60"
+                  className="h-12 w-1/2 rounded-[16px] bg-[#000d33] text-sm font-semibold text-white transition hover:bg-[#00154d] disabled:opacity-60 sm:h-14 sm:rounded-[22px] sm:text-base"
                 >
                   {submitting ? "Creating..." : "Sign Up"}
                 </button>

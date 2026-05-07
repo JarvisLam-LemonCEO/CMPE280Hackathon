@@ -251,20 +251,20 @@ export default function UserProfile() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] dark:bg-[#1a2035] px-6 py-8 text-slate-900 dark:text-white sm:px-10 lg:px-16">
+    <main className="min-h-screen bg-[#f6f7fb] dark:bg-[#1a2035] px-4 py-6 text-slate-900 dark:text-white sm:px-10 sm:py-8 lg:px-16">
       {/* Theme toggle fixed top-right */}
       <div className="fixed top-4 right-4 z-50">
         <ThemeToggle />
       </div>
 
-      <section className="mx-auto w-full max-w-[1000px] section-card">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
-          <div>
+      <section className="mx-auto mt-12 w-full max-w-[1000px] section-card sm:mt-0">
+        <div className="flex flex-col gap-5 sm:gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+          <div className="min-w-0">
             <p className="page-label">User profile</p>
             <h1 className="page-title tracking-[-0.03em]">
               Manage Your Profile
             </h1>
-            <p className="mt-2 max-w-[700px] text-[17px] leading-7 text-[#64748b] dark:text-slate-400">
+            <p className="mt-2 max-w-[700px] text-[15px] leading-6 text-[#64748b] dark:text-slate-400 sm:text-[17px] sm:leading-7">
               Update your profile image, display name, email, password, or
               remove your account.
             </p>
@@ -272,23 +272,23 @@ export default function UserProfile() {
 
           <button
             onClick={() => navigate("/user-home")}
-            className="rounded-2xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-5 py-3 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-700"
+            className="self-start rounded-2xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-700 lg:self-auto"
           >
-            Cancel
+            Back to Gallery
           </button>
         </div>
 
-        <div className="mt-8 grid gap-8 lg:grid-cols-[320px_1fr]">
-          <div className="rounded-[24px] bg-[#f8fafc] dark:bg-slate-800 p-6 ring-1 ring-slate-200 dark:ring-slate-700">
+        <div className="mt-6 grid gap-6 sm:mt-8 sm:gap-8 lg:grid-cols-[320px_1fr]">
+          <div className="rounded-[20px] bg-[#f8fafc] dark:bg-slate-800 p-5 ring-1 ring-slate-200 dark:ring-slate-700 sm:rounded-[24px] sm:p-6">
             <div className="flex flex-col items-center">
               {profileImage ? (
                 <img
                   src={profileImage}
                   alt="Profile"
-                  className="h-40 w-40 rounded-full object-cover ring-4 ring-white shadow"
+                  className="h-32 w-32 rounded-full object-cover ring-4 ring-white shadow sm:h-40 sm:w-40"
                 />
               ) : (
-                <div className="flex h-40 w-40 items-center justify-center rounded-full bg-[#dde7ff] text-5xl font-bold text-[#28457a]">
+                <div className="flex h-32 w-32 items-center justify-center rounded-full bg-[#dde7ff] text-4xl font-bold text-[#28457a] sm:h-40 sm:w-40 sm:text-5xl">
                   {(profile?.displayName?.[0] || email[0] || "U").toUpperCase()}
                 </div>
               )}

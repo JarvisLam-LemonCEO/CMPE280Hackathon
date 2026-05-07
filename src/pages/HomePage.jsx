@@ -100,13 +100,13 @@ export default function App() {
             : "bg-transparent py-6"
         }`}
       >
-        <div className="flex w-full max-w-[1440px] items-center justify-between px-6 sm:px-10 lg:px-16">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#000d33] to-[#28457a] text-white shadow-lg">
+        <div className="flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 sm:px-10 lg:px-16">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#000d33] text-white shadow-lg sm:h-10 sm:w-10">
               <ImageIcon size={20} className="text-white" />
             </div>
             <div>
-              <h2 className="text-[20px] font-bold tracking-tight text-[#0f172f] dark:text-white">
+              <h2 className="text-[18px] font-bold tracking-tight text-[#0f172f] dark:text-white sm:text-[20px]">
                 Pixel<span className="text-[#28457a]">Vault</span>
               </h2>
             </div>
@@ -128,19 +128,21 @@ export default function App() {
             ))}
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             {currentUser ? (
               <>
                 <Link
                   to="/user-home"
-                  className="hidden sm:flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-[#0f172f] dark:text-white transition hover:bg-slate-200 dark:hover:bg-slate-700"
+                  className="flex h-10 items-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800 px-3 text-sm font-semibold text-[#0f172f] dark:text-white transition hover:bg-slate-200 dark:hover:bg-slate-700 sm:px-4"
+                  aria-label="My photos"
                 >
                   <LayoutDashboard size={16} />
-                  <span>My Photos</span>
+                  <span className="hidden sm:inline">My Photos</span>
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="group flex items-center gap-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 shadow-sm transition hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 hover:border-red-100 dark:hover:border-red-800"
+                  className="group flex h-10 items-center gap-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 text-sm font-semibold text-slate-600 dark:text-slate-300 shadow-sm transition hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 hover:border-red-100 dark:hover:border-red-800 sm:px-4"
+                  aria-label="Logout"
                 >
                   <LogOut
                     size={16}
@@ -152,7 +154,7 @@ export default function App() {
             ) : (
               <Link
                 to="/auth?mode=login"
-                className="rounded-xl bg-[#000d33] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-[#000d33]/20 transition-all hover:-translate-y-0.5 hover:bg-[#00154d] hover:shadow-lg hover:shadow-[#000d33]/30"
+                className="flex h-10 items-center rounded-xl bg-[#000d33] px-4 text-sm font-semibold text-white shadow-md shadow-[#000d33]/20 transition-all hover:-translate-y-0.5 hover:bg-[#00154d] hover:shadow-lg hover:shadow-[#000d33]/30 sm:px-5"
               >
                 Join Free
               </Link>
@@ -162,37 +164,37 @@ export default function App() {
         </div>
       </header>
 
-      <main className="pt-28 lg:pt-36">
+      <main className="pt-24 sm:pt-28 lg:pt-36">
         {/* Hero Section */}
-        <section className="mx-auto grid w-full max-w-[1440px] grid-cols-1 gap-16 px-6 pb-20 sm:px-10 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:px-16 lg:pb-32">
+        <section className="mx-auto grid w-full max-w-[1440px] grid-cols-1 gap-12 px-4 pb-16 sm:gap-16 sm:px-10 sm:pb-20 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:px-16 lg:pb-32">
           {/* Hero Content */}
           <div className="relative z-10">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#dde7ff] bg-[#f0f4ff] px-4 py-1.5 text-sm font-semibold text-[#28457a] shadow-sm">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#dde7ff] bg-[#f0f4ff] px-4 py-1.5 text-xs font-semibold text-[#28457a] shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-[#8ba3d4] sm:text-sm">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#28457a] opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#28457a]"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#28457a] opacity-75 dark:bg-[#8ba3d4]"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#28457a] dark:bg-[#8ba3d4]"></span>
               </span>
               New: Collaborative event vaults
             </div>
 
-            <h1 className="mt-8 max-w-[700px] text-[48px] font-extrabold leading-[1.05] tracking-tight text-[#0f172f] dark:text-white sm:text-[64px] lg:text-[72px]">
+            <h1 className="mt-6 max-w-[700px] text-[36px] font-extrabold leading-[1.05] tracking-tight text-[#0f172f] dark:text-white sm:mt-8 sm:text-[56px] lg:text-[72px]">
               A more intelligent home for your{" "}
               <span className="text-[#28457a] dark:text-[#6b9bd2]">
                 greatest moments.
               </span>
             </h1>
 
-            <p className="mt-6 max-w-[600px] text-[18px] leading-relaxed text-[#64748b] dark:text-slate-300 sm:text-[20px]">
+            <p className="mt-5 max-w-[600px] text-[16px] leading-relaxed text-[#64748b] dark:text-slate-300 sm:mt-6 sm:text-[20px]">
               Upload photos, organize albums, share event spaces, and turn
               collections into styled images or short slideshow videos from one
               focused gallery dashboard.
             </p>
 
-            <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="mt-8 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:items-center sm:gap-4">
               {currentUser ? (
                 <Link
                   to="/user-home"
-                  className="group flex items-center justify-center gap-2 rounded-2xl bg-[#000d33] px-8 py-4 text-[16px] font-semibold text-white shadow-lg shadow-[#000d33]/25 transition-all hover:-translate-y-0.5 hover:bg-[#00154d] hover:shadow-xl hover:shadow-[#000d33]/30"
+                  className="group flex items-center justify-center gap-2 rounded-2xl bg-[#000d33] px-6 py-3.5 text-[15px] font-semibold text-white shadow-lg shadow-[#000d33]/25 transition-all hover:-translate-y-0.5 hover:bg-[#00154d] hover:shadow-xl hover:shadow-[#000d33]/30 sm:px-8 sm:py-4 sm:text-[16px]"
                 >
                   <LayoutDashboard size={20} />
                   View My Gallery
@@ -200,7 +202,7 @@ export default function App() {
               ) : (
                 <Link
                   to="/auth?mode=signup"
-                  className="group flex items-center justify-center gap-2 rounded-2xl bg-[#000d33] px-8 py-4 text-[16px] font-semibold text-white shadow-lg shadow-[#000d33]/25 transition-all hover:-translate-y-0.5 hover:bg-[#00154d] hover:shadow-xl hover:shadow-[#000d33]/30"
+                  className="group flex items-center justify-center gap-2 rounded-2xl bg-[#000d33] px-6 py-3.5 text-[15px] font-semibold text-white shadow-lg shadow-[#000d33]/25 transition-all hover:-translate-y-0.5 hover:bg-[#00154d] hover:shadow-xl hover:shadow-[#000d33]/30 sm:px-8 sm:py-4 sm:text-[16px]"
                 >
                   Start Storing Now
                   <ArrowRight
@@ -212,37 +214,37 @@ export default function App() {
 
               <a
                 href="#preview"
-                className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-8 py-4 text-[16px] font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300"
+                className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-[15px] font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:px-8 sm:py-4 sm:text-[16px]"
               >
                 Try the Search
               </a>
             </div>
 
             {/* Stats Row */}
-            <div className="mt-14 flex items-center gap-8 border-t border-slate-200 dark:border-slate-700 pt-8">
+            <div className="mt-10 grid grid-cols-2 gap-x-6 gap-y-6 border-t border-slate-200 dark:border-slate-700 pt-6 sm:mt-14 sm:flex sm:items-center sm:gap-8 sm:pt-8">
               <div>
-                <p className="text-[32px] font-extrabold tracking-tight text-[#0f172f] dark:text-white">
+                <p className="text-[26px] font-extrabold tracking-tight text-[#0f172f] dark:text-white sm:text-[32px]">
                   Live
                 </p>
-                <p className="text-sm font-medium text-[#64748b] dark:text-slate-400">
+                <p className="text-xs font-medium text-[#64748b] dark:text-slate-400 sm:text-sm">
                   Collaboration
                 </p>
               </div>
-              <div className="h-12 w-px bg-slate-200 dark:bg-slate-700"></div>
+              <div className="hidden h-12 w-px bg-slate-200 dark:bg-slate-700 sm:block"></div>
               <div>
-                <p className="text-[32px] font-extrabold tracking-tight text-[#0f172f] dark:text-white">
+                <p className="text-[26px] font-extrabold tracking-tight text-[#0f172f] dark:text-white sm:text-[32px]">
                   Event
                 </p>
-                <p className="text-sm font-medium text-[#64748b] dark:text-slate-400">
+                <p className="text-xs font-medium text-[#64748b] dark:text-slate-400 sm:text-sm">
                   Shared vaults
                 </p>
               </div>
-              <div className="hidden sm:block h-12 w-px bg-slate-200 dark:bg-slate-700"></div>
-              <div className="hidden sm:block">
-                <p className="text-[32px] font-extrabold tracking-tight text-[#0f172f] dark:text-white">
+              <div className="hidden h-12 w-px bg-slate-200 dark:bg-slate-700 sm:block"></div>
+              <div className="col-span-2 sm:col-auto">
+                <p className="text-[26px] font-extrabold tracking-tight text-[#0f172f] dark:text-white sm:text-[32px]">
                   AI
                 </p>
-                <p className="text-sm font-medium text-[#64748b] dark:text-slate-400">
+                <p className="text-xs font-medium text-[#64748b] dark:text-slate-400 sm:text-sm">
                   Style + video
                 </p>
               </div>
@@ -254,11 +256,10 @@ export default function App() {
             id="preview"
             className="relative flex items-center justify-center lg:justify-end"
           >
-            <div className="absolute -left-10 top-0 h-[300px] w-[300px] rounded-full bg-[#3a63ad]/40 blur-[80px]"></div>
-            <div className="absolute -right-10 bottom-0 h-[300px] w-[300px] rounded-full bg-[#8ba3d4]/50 blur-[80px]"></div>
-            <div className="absolute -inset-4 rounded-[50px] bg-gradient-to-tr from-[#ffffff]/50 to-transparent blur-2xl opacity-60"></div>
+            <div className="absolute -left-10 top-0 h-[300px] w-[300px] rounded-full bg-[#3a63ad]/40 blur-[80px] dark:bg-[#3a63ad]/15"></div>
+            <div className="absolute -right-10 bottom-0 h-[300px] w-[300px] rounded-full bg-[#8ba3d4]/50 blur-[80px] dark:bg-[#28457a]/20"></div>
 
-            <div className="relative w-full max-w-[680px] rounded-[32px] border border-white/40 dark:border-white/10 bg-white/10 dark:bg-slate-800/60 p-6 shadow-[0_24px_80px_rgba(15,23,47,0.15),inset_0_1px_2px_rgba(255,255,255,0.6)] backdrop-blur-3xl backdrop-saturate-200 sm:p-8">
+            <div className="relative w-full max-w-[680px] rounded-[28px] border border-white/40 dark:border-white/10 bg-white/10 dark:bg-slate-800/60 p-5 shadow-[0_24px_80px_rgba(15,23,47,0.15),inset_0_1px_2px_rgba(255,255,255,0.6)] backdrop-blur-3xl backdrop-saturate-200 dark:shadow-[0_24px_80px_rgba(0,0,0,0.4)] sm:rounded-[32px] sm:p-8">
               {/* Search Bar */}
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 flex items-center pl-5 pointer-events-none text-slate-500 dark:text-slate-300">
@@ -300,19 +301,19 @@ export default function App() {
               </div>
 
               {/* Image Grid */}
-              <div className="mt-6 grid grid-cols-2 gap-4">
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4">
                 {previewImages.map((image) => (
                   <div
                     key={image.id}
-                    className="group relative overflow-hidden rounded-[20px] bg-white/10 ring-1 ring-white/30 shadow-[0_4px_16px_rgba(0,0,0,0.05)] backdrop-blur-md"
+                    className="group relative overflow-hidden rounded-[16px] bg-white/10 ring-1 ring-white/30 shadow-[0_4px_16px_rgba(0,0,0,0.05)] backdrop-blur-md sm:rounded-[20px]"
                   >
                     <img
                       src={image.url}
                       alt={image.title}
-                      className="h-[180px] w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="h-[140px] w-full object-cover transition-transform duration-500 group-hover:scale-105 sm:h-[180px]"
                       loading="lazy"
                     />
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0f172f]/90 via-[#0f172f]/50 to-transparent p-4 pt-12 transition-opacity duration-300">
+                    <div className="absolute inset-x-0 bottom-0 bg-[#0f172f]/80 p-4 transition-opacity duration-300">
                       <p className="text-sm font-semibold text-white drop-shadow-md">
                         {image.title}
                       </p>
@@ -325,15 +326,15 @@ export default function App() {
               </div>
 
               {previewImages.length === 0 ? (
-                <div className="mt-6 flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/40 bg-white/10 backdrop-blur-md py-12 text-center shadow-sm">
+                <div className="mt-6 flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/40 bg-white/10 backdrop-blur-md py-12 text-center shadow-sm dark:border-slate-600 dark:bg-slate-800/40">
                   <Search
-                    className="mb-3 text-slate-600 drop-shadow-sm"
+                    className="mb-3 text-slate-600 dark:text-slate-300"
                     size={32}
                   />
-                  <p className="text-sm font-medium text-[#0f172f] drop-shadow-sm">
+                  <p className="text-sm font-medium text-[#0f172f] dark:text-slate-100">
                     No matches found
                   </p>
-                  <p className="mt-1 text-xs text-slate-600 drop-shadow-sm">
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                     Try searching for another title, theme, or caption.
                   </p>
                 </div>
@@ -345,9 +346,9 @@ export default function App() {
         {/* Cloud Section */}
         <section
           id="cloud"
-          className="relative bg-white dark:bg-[#222b45] py-20 sm:py-28"
+          className="relative bg-white dark:bg-[#222b45] py-16 sm:py-20 lg:py-28"
         >
-          <div className="mx-auto w-full max-w-[1440px] px-6 sm:px-10 lg:px-16">
+          <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-10 lg:px-16">
             <div className="flex flex-col items-center gap-12 lg:flex-row lg:gap-20">
               <div className="flex-1">
                 <p className="section-label">Connected Gallery</p>
@@ -391,7 +392,7 @@ export default function App() {
                       className="h-full w-full object-cover"
                       loading="lazy"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0f172f]/80 via-[#0f172f]/20 to-transparent"></div>
+                    <div className="absolute inset-0 bg-[#0f172f]/55"></div>
                     <div className="absolute bottom-5 left-5 right-5 flex items-center justify-between gap-3">
                       <div>
                         <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/70">
@@ -409,7 +410,7 @@ export default function App() {
 
                   <div className="p-8">
                   <div className="flex items-center gap-4 border-b border-slate-100 dark:border-slate-700 pb-6">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#000d33] to-[#28457a]">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#000d33]">
                       <ImageIcon size={26} className="text-white" />
                     </div>
                     <div>
@@ -451,9 +452,9 @@ export default function App() {
         {/* Features Section */}
         <section
           id="features"
-          className="relative bg-[#f6f7fb] dark:bg-[#1a2035] py-20 sm:py-28"
+          className="relative bg-[#f6f7fb] dark:bg-[#1a2035] py-16 sm:py-20 lg:py-28"
         >
-          <div className="mx-auto w-full max-w-[1440px] px-6 sm:px-10 lg:px-16">
+          <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-10 lg:px-16">
             <div className="max-w-[720px]">
               <p className="section-label">Why PixelVault</p>
               <h2 className="section-title">
@@ -481,7 +482,7 @@ export default function App() {
                         className="h-[calc(100%+2px)] w-full object-cover transition-transform duration-500 group-hover:scale-105"
                         loading="lazy"
                       />
-                      <div className="absolute -bottom-px inset-x-0 top-0 bg-gradient-to-t from-white via-white/20 to-transparent dark:from-[#2a3655]"></div>
+                      <div className="absolute -bottom-px inset-x-0 top-0 bg-white/40 dark:bg-[#2a3655]/40"></div>
                     </div>
                     <div className="relative -mt-px bg-white p-8 pt-0 dark:bg-[#2a3655]">
                     <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f0f4ff] dark:bg-slate-700 text-[#28457a] dark:text-blue-400 transition-colors group-hover:bg-[#000d33] group-hover:text-white">
@@ -504,27 +505,27 @@ export default function App() {
         {/* Benefits Section */}
         <section
           id="benefits"
-          className="py-20 sm:py-28 bg-white dark:bg-[#222b45]"
+          className="py-16 sm:py-20 lg:py-28 bg-white dark:bg-[#222b45]"
         >
-          <div className="mx-auto w-full max-w-[1440px] px-6 sm:px-10 lg:px-16">
-            <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-              <div className="relative overflow-hidden rounded-[40px] bg-[#000d33] px-8 py-12 sm:px-12 lg:py-20 shadow-2xl">
+          <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-10 lg:px-16">
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-12">
+              <div className="relative overflow-hidden rounded-[28px] bg-[#000d33] px-6 py-10 shadow-2xl sm:rounded-[40px] sm:px-12 sm:py-12 lg:py-20">
                 <img
                   src={coverPhotos[3]}
                   alt="Shared photo vault cover"
                   className="absolute inset-0 h-full w-full object-cover opacity-55"
                   loading="lazy"
                 />
-                <div className="absolute inset-0 bg-gradient-to-br from-[#000d33]/95 via-[#000d33]/80 to-[#28457a]/50"></div>
+                <div className="absolute inset-0 bg-[#000d33]/85"></div>
 
                 <div className="relative z-10">
                   <p className="text-sm font-bold uppercase tracking-[0.15em] text-[#dde7ff]">
                     Your Dashboard
                   </p>
-                  <h2 className="mt-5 text-[36px] font-extrabold tracking-tight text-white sm:text-[44px] leading-[1.1]">
+                  <h2 className="mt-5 text-[28px] font-extrabold tracking-tight text-white leading-[1.1] sm:text-[36px] lg:text-[44px]">
                     Your photos, albums, and event moments in one place.
                   </h2>
-                  <p className="mt-6 text-[18px] leading-relaxed text-white/80">
+                  <p className="mt-5 text-[16px] leading-relaxed text-white/80 sm:mt-6 sm:text-[18px]">
                     PixelVault gives each account its own dashboard for uploads,
                     albums, profile settings, event invitations, comments,
                     likes, votes, sharing, and creative AI-assisted tools.
@@ -532,13 +533,13 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:pl-8">
+              <div className="grid gap-3 sm:gap-4 lg:pl-8">
                 {benefits.map((benefit, idx) => (
                   <div
                     key={idx}
                     className="group flex items-center gap-5 rounded-[24px] bg-white dark:bg-[#2a3655] p-5 shadow-[0_4px_16px_rgba(15,23,47,0.04)] border border-slate-100 dark:border-slate-700 transition-all duration-300 hover:-translate-y-1 hover:border-[#28457a]/30 hover:shadow-[0_12px_30px_rgba(15,23,47,0.08)] cursor-default"
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f0f4ff] text-[#28457a] transition-all duration-300 group-hover:scale-110 group-hover:bg-[#dde7ff]">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f0f4ff] text-[#28457a] transition-all duration-300 group-hover:scale-110 group-hover:bg-[#dde7ff] dark:bg-slate-700 dark:text-[#8ba3d4] dark:group-hover:bg-slate-600">
                       <CheckCircle2 size={20} strokeWidth={2.5} />
                     </div>
                     <p className="text-[16px] font-semibold text-[#0f172f] dark:text-slate-200 transition-colors duration-300 group-hover:text-[#28457a]">
@@ -552,11 +553,11 @@ export default function App() {
         </section>
 
         {/* CTA Section */}
-        <section className="relative mx-auto w-full max-w-[1440px] px-6 pb-20 pt-10 sm:px-10 lg:px-16 lg:pb-32">
-          <div className="absolute left-1/4 top-1/2 h-[300px] w-[300px] -translate-y-1/2 rounded-full bg-[#8ba3d4]/30 blur-[100px] pointer-events-none"></div>
-          <div className="absolute right-1/4 top-1/2 h-[300px] w-[300px] -translate-y-1/2 rounded-full bg-[#dde7ff]/40 blur-[100px] pointer-events-none"></div>
+        <section className="relative mx-auto w-full max-w-[1440px] px-4 pb-16 pt-10 sm:px-10 sm:pb-20 lg:px-16 lg:pb-32">
+          <div className="absolute left-1/4 top-1/2 h-[300px] w-[300px] -translate-y-1/2 rounded-full bg-[#8ba3d4]/30 blur-[100px] pointer-events-none dark:bg-[#28457a]/15"></div>
+          <div className="absolute right-1/4 top-1/2 h-[300px] w-[300px] -translate-y-1/2 rounded-full bg-[#dde7ff]/40 blur-[100px] pointer-events-none dark:bg-[#3a63ad]/15"></div>
 
-          <div className="relative overflow-hidden rounded-[40px] border border-white/60 bg-white/20 px-8 py-14 shadow-[0_24px_80px_rgba(15,23,47,0.06),inset_0_1px_2px_rgba(255,255,255,0.7)] backdrop-blur-3xl backdrop-saturate-150 sm:px-14 lg:py-20 text-center">
+          <div className="relative overflow-hidden rounded-[28px] border border-white/60 bg-white/20 px-6 py-12 shadow-[0_24px_80px_rgba(15,23,47,0.06),inset_0_1px_2px_rgba(255,255,255,0.7)] backdrop-blur-3xl backdrop-saturate-150 dark:border-white/10 dark:bg-slate-800/60 dark:shadow-[0_24px_80px_rgba(0,0,0,0.4)] sm:rounded-[40px] sm:px-14 sm:py-14 lg:py-20 text-center">
             <img
               src={coverPhotos[1]}
               alt="Photo collection cover"
@@ -578,11 +579,11 @@ export default function App() {
               </p>
             </div>
 
-            <div className="relative z-10 mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <div className="relative z-10 mt-8 flex w-full flex-col items-stretch justify-center gap-3 sm:mt-10 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
               {currentUser ? (
                 <Link
                   to="/user-home"
-                  className="flex items-center gap-2 rounded-2xl bg-[#000d33] px-10 py-4 text-[16px] font-bold text-white shadow-lg shadow-[#000d33]/20 transition-all hover:-translate-y-0.5 hover:bg-[#00154d]"
+                  className="flex items-center justify-center gap-2 rounded-2xl bg-[#000d33] px-6 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-[#000d33]/20 transition-all hover:-translate-y-0.5 hover:bg-[#00154d] sm:px-10 sm:py-4 sm:text-[16px]"
                 >
                   <LayoutDashboard size={20} />
                   Open My Vault
@@ -590,7 +591,7 @@ export default function App() {
               ) : (
                 <Link
                   to="/auth?mode=signup"
-                  className="flex items-center gap-2 rounded-2xl bg-[#000d33] px-10 py-4 text-[16px] font-bold text-white shadow-lg shadow-[#000d33]/20 transition-all hover:-translate-y-0.5 hover:bg-[#00154d]"
+                  className="flex items-center justify-center gap-2 rounded-2xl bg-[#000d33] px-6 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-[#000d33]/20 transition-all hover:-translate-y-0.5 hover:bg-[#00154d] sm:px-10 sm:py-4 sm:text-[16px]"
                 >
                   Create Free Account
                   <ArrowRight size={18} />
@@ -599,7 +600,7 @@ export default function App() {
 
               <button
                 onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                className="rounded-2xl border border-white/50 bg-white/40 px-10 py-4 text-[16px] font-bold text-slate-700 shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)] backdrop-blur-md transition-all hover:border-white/80 hover:bg-white/60"
+                className="rounded-2xl border border-white/50 bg-white/40 px-6 py-3.5 text-[15px] font-bold text-slate-700 shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)] backdrop-blur-md transition-all hover:border-white/80 hover:bg-white/60 dark:border-slate-600 dark:bg-slate-700/50 dark:text-slate-200 dark:shadow-none dark:hover:bg-slate-700/80 sm:px-10 sm:py-4 sm:text-[16px]"
               >
                 Back to top
               </button>
@@ -609,13 +610,13 @@ export default function App() {
       </main>
 
       {/* Footer Section */}
-      <footer className="mt-10 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-[#222b45] pt-16 pb-8">
-        <div className="mx-auto w-full max-w-[1440px] px-6 sm:px-10 lg:px-16">
-          <div className="grid grid-cols-1 gap-10 md:grid-cols-4 lg:grid-cols-5">
+      <footer className="mt-10 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-[#222b45] pt-12 pb-8 sm:pt-16">
+        <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-10 lg:px-16">
+          <div className="grid grid-cols-2 gap-8 md:grid-cols-4 lg:grid-cols-5 lg:gap-10">
             {/* Brand Column */}
-            <div className="lg:col-span-2">
+            <div className="col-span-2 md:col-span-4 lg:col-span-2">
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#000d33] to-[#28457a] text-white shadow-md">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#000d33] text-white shadow-md">
                   <ImageIcon size={16} className="text-white" />
                 </div>
                 <h2 className="text-[18px] font-bold tracking-tight text-[#0f172f] dark:text-white">
