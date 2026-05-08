@@ -1,137 +1,280 @@
-# PixelVault — CMPE 280 Hackathon and Final Project
+# PixelVault — CMPE 280 Hackathon & Final Project
 
 Midterm · Hackathon · Final Project — Team 2, Group 7
 
-**Members:**
+## Team Members
 
-1. Dat Tri Tat
-2. Hei Lam
-3. Henry Yang
-4. Saim Sheikh
-5. Thuy Luu
-
----
-# Demo
-Link: https://cmpe-280-hackathon-lake.vercel.app/
----
-
-## Problem & Idea
-
-Managing personal photo libraries is often messy — photos scattered across devices, no easy way to search by content, and no clean interface to browse them. **PixelVault** solves this by providing:
-
-- A themed, searchable gallery organized by categories (Nature, City, Animals, Food)
-- Personal user accounts with per-user image uploads
-- In-gallery commenting on individual photos
-- A clean, responsive UI with full dark mode support
+1. Dat Tri Tat  
+2. Hei Lam  
+3. Henry Yang  
+4. Saim Sheikh  
+5. Thuy Luu  
 
 ---
 
-## Tech Stack
+# Live Demo
 
-| Layer      | Technology                          |
-| ---------- | ----------------------------------- |
-| Framework  | React                               |
-| Routing    | React Router DOM 7                  |
-| Build Tool | Vite 7                              |
-| Styling    | Tailwind CSS v4                     |
-| Icons      | Lucide React                        |
-| Storage    | Browser `localStorage` (no backend) |
-| Language   | JavaScript (JSX)                    |
+### Deployment
+https://cmpe-280-hackathon-lake.vercel.app/
 
 ---
 
-## Project Structure
+# Project Overview
 
+Managing personal media libraries has become increasingly difficult due to scattered photos across devices, poor organization systems, limited search functionality, and traditional gallery applications that focus only on storage instead of user interaction.
+
+**PixelVault** is an AI-enhanced intelligent media management platform designed to modernize the way users upload, organize, edit, and interact with personal photos and videos. The project combines scalable frontend engineering, responsive UI/UX design, cloud-based media infrastructure, and AI-assisted workflows into a professional Single Page Application (SPA).
+
+The platform transforms traditional gallery systems into a more interactive and personalized digital media experience.
+
+---
+
+# Core Features
+
+## Authentication & User Management
+
+- Firebase Authentication integration
+- Secure email/password sign up and login
+- Persistent authenticated sessions
+- Protected user routes
+- Profile management system
+- Upload and update profile picture
+- Secure logout workflow
+
+---
+
+## Intelligent Gallery Dashboard
+
+- Cloud-based media upload system
+- Responsive gallery grid layout
+- Real-time search and filtering workflows
+- Category-based organization
+- Personalized media collections
+- Interactive hover states and gallery animations
+- Multi-select image management workflows
+
+---
+
+## Album Management
+
+- Create and manage custom albums
+- Add/remove images from albums
+- Drag-and-drop photo rearrangement
+- Real-time visual reordering feedback
+- Dynamic album organization system
+- Personalized gallery management experience
+
+---
+
+## AI-Powered Photo Retouching
+
+- AI image transformation workflows
+- Preview-before-apply editing pipeline
+- Multiple AI enhancement styles
+- Modal-based AI editing experience
+- One-click apply workflow
+- Real-time AI interaction feedback
+- Non-destructive editing workflow
+
+---
+
+## Social & Interactive Features
+
+- Add comments on images and videos
+- Interactive user engagement system
+- Like and interaction workflows
+- Shareable media experience
+- Dynamic gallery interactions
+
+---
+
+## Responsive UI/UX Design
+
+- Fully responsive desktop/mobile layouts
+- Dark mode and light mode support
+- Modern SaaS-inspired interface design
+- Interactive transitions and hover animations
+- Modal-based streamlined workflows
+- Accessibility-aware visual hierarchy
+- Consistent typography and spacing system
+
+---
+
+# Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend Framework | React |
+| Build Tool | Vite 7 |
+| Routing | React Router DOM 7 |
+| Styling | Tailwind CSS v4 |
+| Icons | Lucide React |
+| Authentication | Firebase Authentication |
+| Database | Firestore |
+| Cloud Media Storage | Cloudinary |
+| AI Integration | Hugging Face Inference API |
+| Deployment | Vercel |
+| Language | JavaScript (JSX) |
+
+---
+
+# System Architecture
+
+```text
+User Browser
+      ↓
+React + Vite SPA
+      ↓
+React Router DOM
+      ↓
+Firebase Authentication
+      ↓
+Firestore Database
+      ↓
+Cloudinary Media Storage
+      ↓
+AI Image Transformation Layer
+(Hugging Face API)
 ```
+
+---
+
+# Project Structure
+
+```text
 src/
+├── components/
+│   ├── common/
+│   ├── gallery/
+│   ├── modals/
+│   └── ui/
+│
 ├── pages/
-│   ├── HomePage.jsx        # Landing page — hero, features, preview search
-│   ├── AuthPages.jsx       # Login & Sign Up (shared page, mode via URL param)
-│   ├── UserHomePage.jsx    # Dashboard — gallery, upload, search, comments
-│   └── UserProfile.jsx     # Profile — avatar, change email/password, delete account
+│   ├── HomePage.jsx
+│   ├── AuthPages.jsx
+│   ├── UserHomePage.jsx
+│   ├── UserProfile.jsx
+│   ├── AlbumPage.jsx
+│   └── SharedGallery.jsx
+│
 ├── data/
-│   └── galleryData.js      # Theme definitions and sample image metadata
-├── ThemeContext.jsx         # Global dark/light theme provider + ThemeToggle button
-├── index.css               # Tailwind imports + reusable @layer components
-└── App.jsx                 # Route definitions
+│   └── galleryData.js
+│
+├── lib/
+│   ├── firebase.js
+│   ├── cloudinary.js
+│   ├── aiTransform.js
+│   └── AuthContext.jsx
+│
+├── hooks/
+│   ├── useGalleryFilter.js
+│   ├── useTheme.js
+│   └── useDragAndDrop.js
+│
+├── ThemeContext.jsx
+├── App.jsx
+└── index.css
 ```
 
 ---
 
-## Features
+# Workflow
 
-### Authentication
+## User Workflow
 
-- Sign up with email + password (stored in `localStorage`)
-- Login with credential validation
-- Session persisted via `currentUser` key in `localStorage`
-
-### Gallery Dashboard
-
-- Browse images organized by theme: **Nature, City, Animals, Food**
-- Filter gallery by active theme tab
-- **Search** images by title or description (real-time filter)
-- **Upload** custom images with title, description, and theme tag
-- **Multi-select** images and bulk delete
-
-### Comments
-
-- Add and delete comments on any image
-- Comments saved to `localStorage` per image ID
-
-### User Profile
-
-- Upload and save a profile picture
-- Change email (migrates uploaded images + profile picture to new email key)
-- Change password
-- Delete account (type "delete account" to confirm)
-
-### Dark Mode
-
-- Toggle between light and dark theme using the sun/moon button
-- Preference saved to `localStorage` and restored on reload
-- Navy-blue dark palette (`#1a2035`, `#222b45`, `#2a3655`) across all pages
+1. User creates account or logs in  
+2. User uploads photos/videos to cloud storage  
+3. Media is stored and synchronized through Firestore  
+4. User organizes content into albums  
+5. Drag-and-drop rearrangement updates album ordering  
+6. AI retouch workflow generates previews and applies transformations  
+7. Users interact through comments, likes, and sharing workflows  
 
 ---
 
-## Workflow
+# Key Technical Decisions
 
-![Architecture Diagram](workflow.png)
+## Modular SPA Architecture
+
+The application was designed using a scalable Single Page Application architecture with reusable React components and modular routing workflows to improve maintainability and frontend scalability.
 
 ---
 
-## How to Run
+## Cloud-Based Media Infrastructure
 
-**1. Install dependencies**
+Instead of storing media locally, Cloudinary was integrated to provide scalable media storage, optimized image delivery, and cloud-based upload handling.
+
+---
+
+## Firebase Authentication & Firestore
+
+Firebase Authentication and Firestore were selected to simplify backend infrastructure while supporting real-time synchronization and secure authenticated user workflows.
+
+---
+
+## AI Workflow Integration
+
+AI photo retouching workflows were integrated directly into the gallery experience using preview-based interaction design. Users can generate AI-enhanced previews before applying modifications to uploaded media.
+
+---
+
+## Drag-and-Drop Interaction Design
+
+Interactive drag-and-drop album rearrangement was implemented to create a more intuitive and user-friendly gallery organization experience with real-time visual feedback.
+
+---
+
+## Tailwind CSS v4 Design System
+
+Tailwind CSS v4 was used to create a consistent modern UI system with reusable utility classes, responsive layouts, and scalable dark/light theme support.
+
+---
+
+# How to Run
+
+## 1. Install Dependencies
 
 ```bash
 npm install
 ```
 
-**2. Configure Firebase telemetry**
+---
 
-Add your Firebase web app measurement ID locally and in Vercel:
+## 2. Configure Environment Variables
+
+Create a `.env` file:
 
 ```bash
+VITE_FIREBASE_API_KEY=YOUR_KEY
+VITE_FIREBASE_AUTH_DOMAIN=YOUR_DOMAIN
+VITE_FIREBASE_PROJECT_ID=YOUR_PROJECT_ID
+VITE_FIREBASE_STORAGE_BUCKET=YOUR_BUCKET
+VITE_FIREBASE_MESSAGING_SENDER_ID=YOUR_SENDER_ID
+VITE_FIREBASE_APP_ID=YOUR_APP_ID
 VITE_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
+VITE_CLOUDINARY_CLOUD_NAME=YOUR_CLOUD_NAME
+VITE_HUGGINGFACE_API_KEY=YOUR_API_KEY
 ```
 
-Firebase Performance Monitoring uses the existing Firebase app config. Google
-Analytics events require `VITE_FIREBASE_MEASUREMENT_ID`.
+---
 
-**3. Start development server**
+## 3. Start Development Server
 
 ```bash
 npm run dev
 ```
 
-**4. Open in browser**
+---
 
-```
+## 4. Open in Browser
+
+```text
 http://localhost:5173/
 ```
 
-**5. Build for production**
+---
+
+## 5. Build for Production
 
 ```bash
 npm run build
@@ -139,43 +282,25 @@ npm run build
 
 ---
 
-## Key Technical Decisions
+# Future Improvements
 
-### No Backend / No Database
+- AI auto-tagging and semantic image search
+- Collaborative shared albums
+- Advanced video editing workflows
+- Real-time multi-user interaction
+- AI-generated captions and recommendations
+- Media compression optimization
+- Progressive Web App (PWA) support
 
-All data (users, uploads, comments, profile pictures) is stored in the browser's `localStorage`. This keeps the project self-contained with zero server setup — appropriate for a hackathon demo scope.
+---
 
-### Per-User Data Isolation
+# Project Goals Achieved
 
-Uploaded images and profile pictures are stored under email-scoped keys (e.g., `userGalleryUploadsV1:user@email.com`) so multiple accounts can coexist in the same browser without data conflicts.
+- Professional SPA frontend architecture
+- Responsive UI/UX engineering
+- AI-enhanced user interaction workflows
+- Cloud-based scalable media infrastructure
+- Interactive drag-and-drop gallery management
+- Modern frontend engineering practices
+- Real-world deployment and production hosting
 
-### Performance with `useMemo`
-
-Gallery filtering and search are memoized using `useMemo` to avoid unnecessary re-renders when state unrelated to the filter changes.
-
-### Tailwind CSS v4 Class-Based Dark Mode
-
-Tailwind v4 does not use `darkMode: 'class'` in a config file. Instead, dark mode is declared as a CSS variant:
-
-```css
-/* index.css */
-@variant dark (&:where(.dark, .dark *));
-```
-
-The `dark` class is toggled on `<html>` via `ThemeContext.jsx`.
-
-### Reusable CSS Component Classes
-
-Common repeated patterns (modals, cards, buttons, inputs) are extracted into `@layer components` in `index.css` using `@apply`, keeping JSX classNames clean and consistent:
-
-```css
-.modal-overlay {
-  @apply fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4;
-}
-.section-card {
-  @apply rounded-[28px] bg-white dark:bg-[#222b45] p-6 shadow-sm ...;
-}
-.btn-primary {
-  @apply rounded-xl bg-[#000d33] px-5 py-3 text-sm font-semibold text-white ...;
-}
-```
