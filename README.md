@@ -179,7 +179,7 @@ src/
 ---
 
 # Workflow
-
+![Alt Text](workflow2.png)
 ## User Workflow
 
 1. User creates account or logs in  
