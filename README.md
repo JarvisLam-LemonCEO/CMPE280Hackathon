@@ -1,4 +1,4 @@
-# PixelVault — CMPE 280 Hackathon
+# PixelVault — CMPE 280 Hackathon and Final Project
 
 Midterm · Hackathon · Final Project — Team 2, Group 7
 
