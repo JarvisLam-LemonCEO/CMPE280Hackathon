@@ -1,131 +1,25 @@
-/* eslint-disable no-unused-vars */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Circle,
   Download,
-  Edit3,
   ExternalLink,
-  Maximize2,
   PenTool,
-  RefreshCw,
   Square,
   Trash2,
   Type,
   Undo2,
 } from "lucide-react";
-import { isDoc, isPpt, isImg, isVid, isPdf, imageDisplayUrl } from "./fileTypeUtils";
 import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { imageDisplayUrl, isImg, isVid } from "./fileTypeUtils";
 
-const safeUrl = (url) => encodeURIComponent(url || "");
-const officeUrl = (f) => `https://view.officeapps.live.com/op/embed.aspx?src=${safeUrl(f.url)}`;
-const googleUrl = (f) => `https://docs.google.com/gview?embedded=1&url=${safeUrl(f.url)}`;
-const officeScheme = (f) => (isDoc(f) ? "ms-word:ofe|u|" : isPpt(f) ? "ms-powerpoint:ofe|u|" : "");
-const fileLabel = (f) => f?.originalFilename || f?.title || "Uploaded file";
+const fileLabel = (file) => file?.originalFilename || file?.title || "Uploaded media";
 
-
-function OfficeWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) {
-  const viewers = useMemo(
-    () => [
-      { id: "office", label: "Office viewer", src: officeUrl(file) },
-      { id: "google", label: "Google viewer", src: googleUrl(file) },
-    ],
-    [file],
-  );
-  const [viewerIndex, setViewerIndex] = useState(0);
-  const [frameKey, setFrameKey] = useState(0);
-  const viewer = viewers[viewerIndex];
-
-  const present = () => {
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(`<!doctype html><html><head><title>${fileLabel(file)}</title><style>html,body,iframe{margin:0;width:100%;height:100%;border:0;background:#000}</style></head><body><iframe src="${viewer.src}" allowfullscreen></iframe></body></html>`);
-    win.document.close();
-  };
-
-  const switchViewer = () => {
-    setViewerIndex((current) => (current + 1) % viewers.length);
-    setFrameKey((key) => key + 1);
-  };
-
-  return (
-    <div className="flex h-full min-h-[620px] flex-col bg-white dark:bg-slate-900">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{fileLabel(file)}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Viewing with {viewer.label}. Use Edit in Office for actual DOCX/PPTX editing.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              window.location.href = `${officeScheme(file)}${file.url}`;
-            }}
-            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
-          >
-            <Edit3 size={14} />
-            Edit in Office
-          </button>
-          {isPpt(file) && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const presentationUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(file.url)}`;
-                  window.open(presentationUrl, "_blank", "noopener,noreferrer");
-                }}
-                className="rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-black hover:bg-white/20"
-              >
-                Present
-              </button>
-              <span className="text-xs text-black/80">
-                Slide {currentSlideIndex + 1}
-              </span>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={switchViewer}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
-          >
-            <RefreshCw size={14} />
-            Try alternate viewer
-          </button>
-          <a
-            href={file.url}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
-          >
-            <ExternalLink size={14} />
-            Open original
-          </a>
-        </div>
-      </div>
-      <div className="relative flex-1 bg-white">
-        <iframe
-          key={`${viewer.id}-${frameKey}`}
-          title={`${fileLabel(file)} preview`}
-          src={viewer.src}
-          className="h-full min-h-[620px] w-full border-0 bg-white"
-          allowFullScreen
-        />
-        <div className="pointer-events-none absolute bottom-3 left-3 right-3 rounded-xl bg-slate-950/75 px-3 py-2 text-xs text-white shadow-lg">
-          If the preview area stays blank, click <span className="font-semibold">Try alternate viewer</span> or <span className="font-semibold">Open original</span>. Cloudinary files must be publicly reachable for embedded Office/Google preview.
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) {
+function AnnotationWorkspace({ file }) {
   const canvasRef = useRef(null);
   const stageRef = useRef(null);
   const drawing = useRef(false);
-  const start = useRef({ x: 0, y: 0 });
-  const snap = useRef(null);
+  const currentAnnotation = useRef(null);
   const [tool, setTool] = useState("pen");
   const [color, setColor] = useState("#ef4444");
   const [size, setSize] = useState(4);
@@ -136,30 +30,22 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
   const [selectedAnnotationId, setSelectedAnnotationId] = useState("");
   const [startTime, setStartTime] = useState(0);
   const [endTime, setEndTime] = useState(10);
-  const currentAnnotation = useRef(null);
 
   const renderAnnotations = useCallback(
     (items = annotations, videoTime = null) => {
-      const c = canvasRef.current;
-      if (!c) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-      const ctx = c.getContext("2d");
-      ctx.clearRect(0, 0, c.width, c.height);
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const visibleItems = items.filter((item) => {
-        if (isVid(file)) {
-          const t = Number(videoTime || 0);
-          return (
-            t >= Number(item.startTime || 0) &&
-            t <= Number(item.endTime || 999999)
-          );
-        }
-
-        if (isPpt(file)) {
-          return Number(item.slideIndex || 0) === Number(currentSlideIndex);
-        }
-
-        return true;
+        if (!isVid(file)) return true;
+        const t = Number(videoTime || 0);
+        return (
+          t >= Number(item.startTime || 0) &&
+          t <= Number(item.endTime || 999999)
+        );
       });
 
       visibleItems.forEach((item) => {
@@ -171,9 +57,9 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
 
         if (item.type === "pen") {
           ctx.beginPath();
-          item.points.forEach((p, i) => {
-            if (i === 0) ctx.moveTo(p.x, p.y);
-            else ctx.lineTo(p.x, p.y);
+          item.points.forEach((point, index) => {
+            if (index === 0) ctx.moveTo(point.x, point.y);
+            else ctx.lineTo(point.x, point.y);
           });
           ctx.stroke();
         }
@@ -194,45 +80,33 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
         }
       });
     },
-    [annotations, file, currentSlideIndex]
+    [annotations, file],
   );
 
-  const saveAnnotation = async () => {
-    if (!file?.id) {
-      alert("This file cannot save annotations because it is not an uploaded file.");
-      return;
-    }
+  const resize = useCallback(() => {
+    const canvas = canvasRef.current;
+    const stage = stageRef.current;
+    if (!canvas || !stage) return;
 
-    try {
-      setSaving(true);
-
-      await updateDoc(doc(db, "uploads", file.id), {
-        annotations,
-        annotationUpdatedAt: serverTimestamp(),
-      });
-
-      alert("Annotation saved.");
-    } catch (err) {
-      console.error("save annotation failed", err);
-      alert("Could not save annotation.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const resize = () => {
-    const c = canvasRef.current;
-    const s = stageRef.current;
-    if (!c || !s) return;
     const old = document.createElement("canvas");
-    old.width = c.width;
-    old.height = c.height;
-    if (c.width && c.height) old.getContext("2d").drawImage(c, 0, 0);
-    const r = s.getBoundingClientRect();
-    c.width = Math.max(1, r.width);
-    c.height = Math.max(1, r.height);
-    if (old.width && old.height) c.getContext("2d").drawImage(old, 0, 0, c.width, c.height);
-  };
+    old.width = canvas.width;
+    old.height = canvas.height;
+    if (canvas.width && canvas.height) {
+      old.getContext("2d").drawImage(canvas, 0, 0);
+    }
+
+    const rect = stage.getBoundingClientRect();
+    canvas.width = Math.max(1, rect.width);
+    canvas.height = Math.max(1, rect.height);
+
+    if (old.width && old.height) {
+      canvas
+        .getContext("2d")
+        .drawImage(old, 0, 0, canvas.width, canvas.height);
+    }
+
+    renderAnnotations();
+  }, [renderAnnotations]);
 
   useEffect(() => {
     const id = requestAnimationFrame(resize);
@@ -241,44 +115,36 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
       cancelAnimationFrame(id);
       window.removeEventListener("resize", resize);
     };
-  }, [file?.url]);
-
-  useEffect(() => {
-    renderAnnotations();
-  }, [annotations, renderAnnotations]);
+  }, [file?.url, resize]);
 
   useEffect(() => {
     setAnnotations(file?.annotations || []);
   }, [file?.annotations]);
 
   useEffect(() => {
-  if (!file?.annotationOverlayUrl) return;
+    renderAnnotations();
+  }, [annotations, renderAnnotations]);
 
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  img.onload = () => {
-    const c = canvasRef.current;
-    if (!c) return;
-    const ctx = c.getContext("2d");
-    ctx.clearRect(0, 0, c.width, c.height);
-    ctx.drawImage(img, 0, 0, c.width, c.height);
+  const point = (event) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const touch = event.touches?.[0] || event.changedTouches?.[0];
+    return {
+      x: (touch?.clientX ?? event.clientX) - rect.left,
+      y: (touch?.clientY ?? event.clientY) - rect.top,
+    };
   };
-  img.src = file.annotationOverlayUrl;
-}, [file?.annotationOverlayUrl, file?.url]);
 
-  const point = (e) => {
-    const r = canvasRef.current.getBoundingClientRect();
-    const t = e.touches?.[0] || e.changedTouches?.[0];
-    return { x: (t?.clientX ?? e.clientX) - r.left, y: (t?.clientY ?? e.clientY) - r.top };
+  const remember = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    setHistory((items) => [...items.slice(-12), canvas.toDataURL("image/png")]);
   };
-  const remember = () => setHistory((h) => [...h.slice(-12), canvasRef.current.toDataURL("image/png")]);
-  const down = (e) => {
+
+  const down = (event) => {
     if (!annotating) return;
+    event.preventDefault();
 
-    e.preventDefault();
-
-    const p = point(e);
-
+    const p = point(event);
     const annotation = {
       id: crypto.randomUUID(),
       type: tool,
@@ -293,7 +159,6 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
       radius: 0,
       startTime: Number(startTime) || 0,
       endTime: Number(endTime) || 999999,
-      slideIndex: isPpt(file) ? currentSlideIndex : null,
     };
 
     if (tool === "text") {
@@ -305,16 +170,16 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
       return;
     }
 
+    remember();
     drawing.current = true;
     currentAnnotation.current = annotation;
   };
 
-  const move = (e) => {
+  const move = (event) => {
     if (!drawing.current || !annotating || !currentAnnotation.current) return;
+    event.preventDefault();
 
-    e.preventDefault();
-
-    const p = point(e);
+    const p = point(event);
     const annotation = currentAnnotation.current;
 
     if (annotation.type === "pen") {
@@ -344,31 +209,67 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
     setAnnotations((items) => [...items, annotation]);
     setSelectedAnnotationId(annotation.id);
   };
+
   const undo = () => {
     const last = history.at(-1);
     if (!last) return;
+
     const img = new Image();
     img.onload = () => {
-      const c = canvasRef.current;
-      const ctx = c.getContext("2d");
-      ctx.clearRect(0, 0, c.width, c.height);
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      setHistory((h) => h.slice(0, -1));
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      setHistory((items) => items.slice(0, -1));
     };
     img.src = last;
   };
+
   const clear = () => {
     remember();
-    const c = canvasRef.current;
-    c.getContext("2d").clearRect(0, 0, c.width, c.height);
+    setAnnotations([]);
+    setSelectedAnnotationId("");
   };
+
+  const saveAnnotation = async () => {
+    if (!file?.id) {
+      alert("This media cannot save annotations because it is not an uploaded file.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      await updateDoc(doc(db, "uploads", file.id), {
+        annotations,
+        annotationUpdatedAt: serverTimestamp(),
+      });
+
+      alert("Annotation saved.");
+    } catch (err) {
+      console.error("save annotation failed", err);
+      alert("Could not save annotation.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const download = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
     const a = document.createElement("a");
-    a.download = `${file.title || "file"}-annotations.png`;
-    a.href = canvasRef.current.toDataURL("image/png");
+    a.download = `${file.title || "media"}-annotations.png`;
+    a.href = canvas.toDataURL("image/png");
     a.click();
   };
-  const buttons = [["pen", PenTool, "Draw"], ["rect", Square, "Box"], ["circle", Circle, "Circle"], ["text", Type, "Text"]];
+
+  const buttons = [
+    ["pen", <PenTool key="pen-icon" size={14} />, "Draw"],
+    ["rect", <Square key="rect-icon" size={14} />, "Box"],
+    ["circle", <Circle key="circle-icon" size={14} />, "Circle"],
+    ["text", <Type key="text-icon" size={14} />, "Text"],
+  ];
 
   return (
     <div className="flex h-full min-h-[620px] flex-col bg-slate-950">
@@ -381,40 +282,83 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
           <PenTool size={14} />
           {annotating ? "Annotation on" : "Enable annotation"}
         </button>
-        {buttons.map(([id, Icon, label]) => (
-          <button key={id} type="button" onClick={() => { setTool(id); setAnnotating(true); }} className={`inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold ${tool === id && annotating ? "bg-indigo-600" : "bg-white/10 hover:bg-white/20"}`}>
-            <Icon size={14} />
+
+        {buttons.map(([id, icon, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => {
+              setTool(id);
+              setAnnotating(true);
+            }}
+            className={`inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold ${tool === id && annotating ? "bg-indigo-600" : "bg-white/10 hover:bg-white/20"}`}
+          >
+            {icon}
             {label}
           </button>
         ))}
-        <input aria-label="Color" type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-9 w-11 bg-transparent" />
-        <input aria-label="Size" type="range" min="2" max="18" value={size} onChange={(e) => setSize(Number(e.target.value))} />
-        <button type="button" onClick={undo} className="inline-flex items-center gap-1 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/20"><Undo2 size={14} />Undo</button>
-        <button type="button" onClick={clear} className="inline-flex items-center gap-1 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/20"><Trash2 size={14} />Clear</button>
-        <label className="flex items-center gap-1 text-xs">
-          Start
-          <input
-            type="number"
-            min="0"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            className="w-16 rounded bg-white/10 px-2 py-1 text-white"
-          />
-        </label>
 
-        <label className="flex items-center gap-1 text-xs">
-          End
-          <input
-            type="number"
-            min="0"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            className="w-16 rounded bg-white/10 px-2 py-1 text-white"
-          />
-        </label>
+        <input
+          aria-label="Color"
+          type="color"
+          value={color}
+          onChange={(event) => setColor(event.target.value)}
+          className="h-9 w-11 bg-transparent"
+        />
+        <input
+          aria-label="Size"
+          type="range"
+          min="2"
+          max="18"
+          value={size}
+          onChange={(event) => setSize(Number(event.target.value))}
+        />
+        <button
+          type="button"
+          onClick={undo}
+          className="inline-flex items-center gap-1 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/20"
+        >
+          <Undo2 size={14} />
+          Undo
+        </button>
+        <button
+          type="button"
+          onClick={clear}
+          className="inline-flex items-center gap-1 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/20"
+        >
+          <Trash2 size={14} />
+          Clear
+        </button>
+
+        {isVid(file) && (
+          <>
+            <label className="flex items-center gap-1 text-xs">
+              Start
+              <input
+                type="number"
+                min="0"
+                value={startTime}
+                onChange={(event) => setStartTime(event.target.value)}
+                className="w-16 rounded bg-white/10 px-2 py-1 text-white"
+              />
+            </label>
+
+            <label className="flex items-center gap-1 text-xs">
+              End
+              <input
+                type="number"
+                min="0"
+                value={endTime}
+                onChange={(event) => setEndTime(event.target.value)}
+                className="w-16 rounded bg-white/10 px-2 py-1 text-white"
+              />
+            </label>
+          </>
+        )}
+
         <select
           value={selectedAnnotationId}
-          onChange={(e) => setSelectedAnnotationId(e.target.value)}
+          onChange={(event) => setSelectedAnnotationId(event.target.value)}
           className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white"
         >
           <option value="">Select annotation</option>
@@ -430,7 +374,7 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
           onClick={() => {
             if (!selectedAnnotationId) return;
             setAnnotations((items) =>
-              items.filter((item) => item.id !== selectedAnnotationId)
+              items.filter((item) => item.id !== selectedAnnotationId),
             );
             setSelectedAnnotationId("");
           }}
@@ -440,19 +384,37 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
         </button>
         <button
           type="button"
+          onClick={download}
+          className="inline-flex items-center gap-1 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/20"
+        >
+          <Download size={14} />
+          Download annotation
+        </button>
+        <button
+          type="button"
           onClick={saveAnnotation}
           disabled={saving}
-          className="inline-flex items-center gap-1 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/20 disabled:opacity-60">
+          className="inline-flex items-center gap-1 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/20 disabled:opacity-60"
+        >
           <Download size={14} />
           {saving ? "Saving..." : "Save annotation"}
         </button>
-        <a href={file.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/20"><ExternalLink size={14} />Open original</a>
+        <a
+          href={file.url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/20"
+        >
+          <ExternalLink size={14} />
+          Open original
+        </a>
       </div>
+
       <div ref={stageRef} className="relative min-h-[620px] flex-1 overflow-hidden bg-black">
         {isImg(file) && (
           <img
             src={imageDisplayUrl(file)}
-            alt={file.title || file.originalFilename || "File"}
+            alt={fileLabel(file)}
             className="absolute inset-0 h-full w-full object-contain"
           />
         )}
@@ -463,19 +425,12 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
             controls
             preload="metadata"
             className="absolute inset-0 h-full w-full object-contain"
-            onTimeUpdate={(e) => {
-              renderAnnotations(annotations, e.currentTarget.currentTime);
+            onTimeUpdate={(event) => {
+              renderAnnotations(annotations, event.currentTarget.currentTime);
             }}
           />
         )}
 
-        {isPdf(file) && (
-          <iframe
-            title={file.title || "PDF"}
-            src={file.url}
-            className="absolute inset-0 h-full w-full border-0 bg-white"
-          />
-        )}
         <canvas
           ref={canvasRef}
           className={`absolute inset-0 z-10 h-full w-full touch-none ${annotating ? "pointer-events-auto cursor-crosshair" : "pointer-events-none"}`}
@@ -493,28 +448,11 @@ function AnnotationWorkspace({ file, currentSlideIndex, setCurrentSlideIndex }) 
 }
 
 export default function FileWorkspace({ file }) {
-  const canOffice = isDoc(file) || isPpt(file);
-  const canAnnotate = isImg(file) || isVid(file) || isPdf(file);
-  const [mode, setMode] = useState(canOffice ? "office" : "annotate");
-  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
-  if (!canOffice && !canAnnotate) return null;
+  if (!isImg(file) && !isVid(file)) return null;
+
   return (
     <div className="h-full min-h-[620px] overflow-hidden rounded-2xl bg-white dark:bg-slate-900">
-      {canOffice && canAnnotate && (
-        <div className="flex gap-2 border-b border-slate-200 p-2 dark:border-slate-700">
-          <button onClick={() => setMode("office")} className={`rounded-xl px-3 py-2 text-xs font-semibold ${mode === "office" ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-800"}`}>Preview/Edit</button>
-          <button onClick={() => setMode("annotate")} className={`rounded-xl px-3 py-2 text-xs font-semibold ${mode === "annotate" ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-800"}`}>Annotate</button>
-        </div>
-      )}
-      {canOffice && mode === "office" ? <OfficeWorkspace
-        file={file}
-        currentSlideIndex={currentSlideIndex}
-        setCurrentSlideIndex={setCurrentSlideIndex}
-      /> : <AnnotationWorkspace
-            file={file}
-            currentSlideIndex={currentSlideIndex}
-            setCurrentSlideIndex={setCurrentSlideIndex}
-          />}
+      <AnnotationWorkspace file={file} />
     </div>
   );
 }

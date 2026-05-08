@@ -76,8 +76,7 @@ export default function ShareDialog({
     currentUser?.uid && upload?.ownerUid && currentUser.uid === upload.ownerUid,
   );
   const contentType = contentTypeOf(upload);
-  const contentLabel =
-    contentType === "video" ? "video" : contentType === "file" ? "file" : "photo";
+  const contentLabel = contentType === "video" ? "video" : "photo";
   const storageContentType = upload?.isGeneratedVideo ? "video" : "image";
 
   const sharedWithKey = (upload?.sharedWith ?? []).join(",");

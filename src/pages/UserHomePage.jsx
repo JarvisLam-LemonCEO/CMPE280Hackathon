@@ -28,7 +28,7 @@ import { generateStyledImage, AI_STYLES, isHFConfigured } from "../lib/huggingfa
 import { findUidByEmail, getUsersByUids, removeFromMyGallery } from "../lib/sharing";
 import { measureTrace, startTrace, trackEvent } from "../lib/telemetry";
 import FilePreview from "../components/FilePreview";
-import { isImg } from "../components/fileTypeUtils";
+import { isImg, isVid } from "../components/fileTypeUtils";
 import ShareDialog from "../components/ShareDialog";
 import VideoGeneratorModal from "../components/VideoGeneratorModal";
 import {
@@ -216,12 +216,24 @@ const toMillis = (value) => {
 };
 
 const resourceTypeFromData = (data = {}) => {
-  if (data.resourceType) return data.resourceType;
+  if (data.resourceType === "image" || data.resourceType === "video") {
+    return data.resourceType;
+  }
   const mimeType = String(data.mimeType || "").toLowerCase();
   if (mimeType.startsWith("video/")) return "video";
   if (mimeType.startsWith("image/")) return "image";
-  if (mimeType) return "raw";
   return "image";
+};
+
+const isSupportedUploadData = (data = {}) => {
+  if (data.resourceType && !["image", "video"].includes(data.resourceType)) {
+    return false;
+  }
+
+  const mimeType = String(data.mimeType || "").toLowerCase();
+  if (!mimeType) return true;
+
+  return mimeType.startsWith("image/") || mimeType.startsWith("video/");
 };
 
 const formatCommentDate = (timestamp) => {
@@ -302,6 +314,22 @@ const runWithConcurrency = async (items, worker, limit = 2) => {
     Array.from({ length: Math.min(limit, items.length) }, () => runner()),
   );
   return results;
+};
+
+const isAcceptedMediaFile = (file) => {
+  const candidate = {
+    mimeType: file?.type || "",
+    originalFilename: file?.name || "",
+  };
+  return isImg(candidate) || isVid(candidate);
+};
+
+const chunkArray = (items, size) => {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
 };
 
 const eventInviteId = (eventId, uid) => `${eventId}_${uid}`;
@@ -730,33 +758,35 @@ function UserHomePage() {
       q,
       (snap) => {
         setUploadedImages(
-          snap.docs.map((d) => {
-            const data = d.data();
-            return {
-              id: d.id,
-              title: data.title,
-              subtitle: data.subtitle,
-              url: data.url,
-              publicId: data.publicId,
-              resourceType: resourceTypeFromData(data),
-              mimeType: data.mimeType || "image/*",
-              originalFilename: data.originalFilename || data.title || "",
-              bytes: data.bytes || 0,
-              groupId: data.groupId || "",
-              groupName: data.groupName || "",
-              originalUrl: data.originalUrl || "",
-              originalPublicId: data.originalPublicId || "",
-              annotations: data.annotations || [],
-              annotationOverlayUrl: data.annotationOverlayUrl || "",
-              themeId: data.themeId,
-              themeLabel: data.themeLabel,
-              createdAt: toMillis(data.createdAt),
-              ownerUid: data.ownerUid,
-              ownerName: data.ownerName,
-              isShared: Boolean(data.isShared),
-              sharedWith: data.sharedWith ?? [],
-            };
-          }),
+          snap.docs
+            .filter((d) => isSupportedUploadData(d.data()))
+            .map((d) => {
+              const data = d.data();
+              return {
+                id: d.id,
+                title: data.title,
+                subtitle: data.subtitle,
+                url: data.url,
+                publicId: data.publicId,
+                resourceType: resourceTypeFromData(data),
+                mimeType: data.mimeType || "image/*",
+                originalFilename: data.originalFilename || data.title || "",
+                bytes: data.bytes || 0,
+                groupId: data.groupId || "",
+                groupName: data.groupName || "",
+                originalUrl: data.originalUrl || "",
+                originalPublicId: data.originalPublicId || "",
+                annotations: data.annotations || [],
+                annotationOverlayUrl: data.annotationOverlayUrl || "",
+                themeId: data.themeId,
+                themeLabel: data.themeLabel,
+                createdAt: toMillis(data.createdAt),
+                ownerUid: data.ownerUid,
+                ownerName: data.ownerName,
+                isShared: Boolean(data.isShared),
+                sharedWith: data.sharedWith ?? [],
+              };
+            }),
         );
       },
       (err) => {
@@ -783,34 +813,36 @@ function UserHomePage() {
       q,
       (snap) => {
         setSharedWithMeImages(
-          snap.docs.map((d) => {
-            const data = d.data();
-            return {
-              id: d.id,
-              title: data.title,
-              subtitle: data.subtitle,
-              url: data.url,
-              publicId: data.publicId,
-              resourceType: resourceTypeFromData(data),
-              mimeType: data.mimeType || "image/*",
-              originalFilename: data.originalFilename || data.title || "",
-              bytes: data.bytes || 0,
-              groupId: data.groupId || "",
-              groupName: data.groupName || "",
-              originalUrl: data.originalUrl || "",
-              originalPublicId: data.originalPublicId || "",
-              annotations: data.annotations || [],
-              annotationOverlayUrl: data.annotationOverlayUrl || "",
-              themeId: data.themeId,
-              themeLabel: data.themeLabel,
-              createdAt: toMillis(data.createdAt),
-              ownerUid: data.ownerUid,
-              ownerName: data.ownerName,
-              isShared: Boolean(data.isShared),
-              sharedWith: data.sharedWith ?? [],
-              isSharedWithMe: true,
-            };
-          }),
+          snap.docs
+            .filter((d) => isSupportedUploadData(d.data()))
+            .map((d) => {
+              const data = d.data();
+              return {
+                id: d.id,
+                title: data.title,
+                subtitle: data.subtitle,
+                url: data.url,
+                publicId: data.publicId,
+                resourceType: resourceTypeFromData(data),
+                mimeType: data.mimeType || "image/*",
+                originalFilename: data.originalFilename || data.title || "",
+                bytes: data.bytes || 0,
+                groupId: data.groupId || "",
+                groupName: data.groupName || "",
+                originalUrl: data.originalUrl || "",
+                originalPublicId: data.originalPublicId || "",
+                annotations: data.annotations || [],
+                annotationOverlayUrl: data.annotationOverlayUrl || "",
+                themeId: data.themeId,
+                themeLabel: data.themeLabel,
+                createdAt: toMillis(data.createdAt),
+                ownerUid: data.ownerUid,
+                ownerName: data.ownerName,
+                isShared: Boolean(data.isShared),
+                sharedWith: data.sharedWith ?? [],
+                isSharedWithMe: true,
+              };
+            }),
         );
       },
       (err) => {
@@ -1425,23 +1457,44 @@ function UserHomePage() {
   }, [albums, albumPhotos, allPhotosMap]);
 
   useEffect(() => {
-    const ids = filteredImages.map((img) => img.id).filter(Boolean);
+    const ids = Array.from(
+      new Set(filteredImages.map((img) => img.id).filter(Boolean)),
+    );
 
     if (ids.length === 0) {
       setCommentCounts({});
       return undefined;
     }
 
-    const unsubs = ids.map((imageId) => {
+    setCommentCounts(
+      ids.reduce((counts, imageId) => {
+        counts[imageId] = 0;
+        return counts;
+      }, {}),
+    );
+
+    const unsubs = chunkArray(ids, 30).map((chunk) => {
       const q = query(
         collection(db, "comments"),
-        where("imageId", "==", imageId),
+        where("imageId", "in", chunk),
       );
 
       return onSnapshot(
         q,
         (snap) => {
-          setCommentCounts((prev) => ({ ...prev, [imageId]: snap.size }));
+          const batchCounts = chunk.reduce((counts, imageId) => {
+            counts[imageId] = 0;
+            return counts;
+          }, {});
+
+          snap.docs.forEach((docSnap) => {
+            const imageId = docSnap.data()?.imageId;
+            if (imageId && Object.hasOwn(batchCounts, imageId)) {
+              batchCounts[imageId] += 1;
+            }
+          });
+
+          setCommentCounts((prev) => ({ ...prev, ...batchCounts }));
         },
         (err) => {
           console.error("comment count snapshot error", err);
@@ -1710,20 +1763,26 @@ function UserHomePage() {
     const title = uploadTitle.trim();
     const subtitle = uploadDescription.trim();
     const groupName = uploadGroupName.trim();
+    const mediaFiles = uploadFiles.filter(isAcceptedMediaFile);
 
-    if (!user || !title || !subtitle || uploadFiles.length === 0) return;
+    if (mediaFiles.length !== uploadFiles.length) {
+      setUploadFiles(mediaFiles);
+      showToast("Only image and video files are supported.", "error");
+    }
+
+    if (!user || !title || !subtitle || mediaFiles.length === 0) return;
 
     try {
       setUploading(true);
-      const totalBytes = uploadFiles.reduce((sum, file) => sum + (file.size || 0), 0);
+      const totalBytes = mediaFiles.reduce((sum, file) => sum + (file.size || 0), 0);
       trackEvent("file_upload_start", {
-        file_count: uploadFiles.length,
+        file_count: mediaFiles.length,
         total_file_size_bytes: totalBytes,
         theme_id: uploadTheme,
       });
 
       const selectedTheme = themeById[uploadTheme];
-      const shouldCreateAlbum = uploadFiles.length > 1;
+      const shouldCreateAlbum = mediaFiles.length > 1;
       let createdAlbumId = "";
       let createdGroupName = "";
 
@@ -1744,24 +1803,24 @@ function UserHomePage() {
       const failures = [];
 
       await measureTrace("file_upload_total", async (activeTrace) => {
-        activeTrace?.putMetric("file_count", uploadFiles.length);
+        activeTrace?.putMetric("file_count", mediaFiles.length);
         activeTrace?.putMetric("total_file_size_bytes", totalBytes);
         const results = await runWithConcurrency(
-          uploadFiles,
+          mediaFiles,
           async (currentFile, index) => {
             const uploadResult = await uploadToCloudinary(currentFile);
             const itemTitle =
-              uploadFiles.length === 1 ? title : `${title} ${index + 1}`;
+              mediaFiles.length === 1 ? title : `${title} ${index + 1}`;
             const uploadRef = await addDoc(collection(db, "uploads"), {
               title: itemTitle,
               subtitle,
               url: uploadResult.url,
               publicId: uploadResult.publicId || "",
-              resourceType: uploadResult.resourceType || "raw",
+              resourceType: uploadResult.resourceType || "image",
               mimeType:
                 uploadResult.mimeType ||
                 currentFile.type ||
-                "application/octet-stream",
+                (uploadResult.resourceType === "video" ? "video/*" : "image/*"),
               originalFilename:
                 uploadResult.originalFilename || currentFile.name || itemTitle,
               bytes:
@@ -1800,7 +1859,7 @@ function UserHomePage() {
             uploadedDocIds.push(result.value);
           } else if (result?.status === "rejected") {
             failures.push({
-              fileName: uploadFiles[index]?.name || `File ${index + 1}`,
+              fileName: mediaFiles[index]?.name || `File ${index + 1}`,
               message: result.reason?.message || "Upload failed",
             });
           }
@@ -1815,7 +1874,7 @@ function UserHomePage() {
       }, {
         attributes: { theme_id: uploadTheme },
         metrics: {
-          file_count: uploadFiles.length,
+          file_count: mediaFiles.length,
           total_file_size_bytes: totalBytes,
         },
       });
@@ -1828,9 +1887,9 @@ function UserHomePage() {
         showToast(`Some files failed: ${failedNames}`, "error");
       } else {
         showToast(
-          uploadFiles.length > 1
-            ? `Uploaded ${uploadFiles.length} files.`
-            : "File uploaded.",
+          mediaFiles.length > 1
+            ? `Uploaded ${mediaFiles.length} media files.`
+            : "Media uploaded.",
           "success",
         );
       }
@@ -1850,10 +1909,10 @@ function UserHomePage() {
     } catch (err) {
       console.error("upload submit failed", err);
       trackEvent("file_upload_failed", {
-        file_count: uploadFiles.length,
+        file_count: mediaFiles.length,
         error_code: err?.code || err?.name || "error",
       });
-      alert(err?.message || "Could not upload files.");
+      alert(err?.message || "Could not upload media.");
     } finally {
       setUploading(false);
     }
@@ -3681,9 +3740,13 @@ const handleAlbumDragEnd = async (event) => {
                   <input
                     type="file"
                     multiple
-                    accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx,.pps,.ppsx,.xls,.xlsx,.csv,.txt,.md,.json,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.cs,.zip,.rar"
+                    accept="image/*,video/*"
                     onChange={(e) => {
-                      const newFiles = Array.from(e.target.files || []);
+                      const allFiles = Array.from(e.target.files || []);
+                      const newFiles = allFiles.filter(isAcceptedMediaFile);
+                      if (newFiles.length < allFiles.length) {
+                        showToast("Only image and video files are supported.", "error");
+                      }
                       setUploadFiles((prev) => {
                         const merged = [...prev];
                         newFiles.forEach((file) => {
@@ -3726,7 +3789,7 @@ const handleAlbumDragEnd = async (event) => {
                     </div>
                   )}
                   <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    Upload images, videos, PDFs, docs, slides, spreadsheets, code files, and archives.
+                    Upload images and videos only.
                   </p>
                 </div>
 

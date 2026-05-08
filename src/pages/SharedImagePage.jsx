@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { allThemeImages } from "../data/galleryData";
 import FilePreview from "../components/FilePreview";
-import { contentTypeOf } from "../components/fileTypeUtils";
+import { contentTypeOf, isImg, isVid } from "../components/fileTypeUtils";
 import { db } from "../lib/firebase";
 import { useAuth } from "../lib/AuthContext";
 import { addSharedToGallery } from "../lib/sharing";
@@ -56,22 +56,29 @@ export default function SharedImagePage() {
           if (uploadSnap.exists() && uploadSnap.data()?.isShared) {
             const data = uploadSnap.data();
             const mimeType = String(data.mimeType || "").toLowerCase();
+            const isSupportedResourceType =
+              !data.resourceType || ["image", "video"].includes(data.resourceType);
+            const isSupportedMime =
+              !mimeType ||
+              mimeType.startsWith("image/") ||
+              mimeType.startsWith("video/");
+
+            if (!isSupportedResourceType || !isSupportedMime) return null;
+
+            const resourceType =
+              data.resourceType === "video" || mimeType.startsWith("video/")
+                ? "video"
+                : "image";
+
             const normalized = {
               ...data,
-              resourceType:
-                data.resourceType ||
-                (mimeType.startsWith("video/")
-                  ? "video"
-                  : mimeType.startsWith("image/")
-                    ? "image"
-                    : mimeType
-                      ? "raw"
-                      : "image"),
+              resourceType,
               mimeType: data.mimeType || "image/*",
               originalFilename: data.originalFilename || data.title || "",
               annotations: data.annotations || [],
               annotationOverlayUrl: data.annotationOverlayUrl || "",
             };
+            if (!isImg(normalized) && !isVid(normalized)) return null;
             const contentType = contentTypeOf(normalized);
             activeTrace?.putAttribute("content_type", contentType);
             return {
@@ -114,7 +121,7 @@ export default function SharedImagePage() {
             themeLabel:
               sharedItem.contentType === "video"
                 ? "Video"
-                : sharedItem.data.themeLabel || "Shared file",
+                : sharedItem.data.themeLabel || "Shared media",
           });
           trackEvent("shared_image_view", {
             source: "public_link",
@@ -144,11 +151,9 @@ export default function SharedImagePage() {
 
   const isThemeImage = Boolean(themeImage);
   const contentType = image?.contentType || contentTypeOf(image);
-  const contentLabel =
-    contentType === "video" ? "video" : contentType === "file" ? "file" : "photo";
+  const contentLabel = contentType === "video" ? "video" : "photo";
   const storageContentType = image?.isGeneratedVideo ? "video" : "image";
-  const openFileLabel =
-    contentType === "file" ? "Open file" : `Open ${contentLabel} file`;
+  const openFileLabel = `Open ${contentLabel} file`;
   const isOwner = Boolean(user && image?.ownerUid && image.ownerUid === user.uid);
   const alreadyAdded = Boolean(
     user && Array.isArray(image?.sharedWith) && image.sharedWith.includes(user.uid),

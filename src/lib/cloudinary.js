@@ -12,7 +12,7 @@ function getResourceType(file) {
 
   if (mimeType.startsWith("image/") || IMAGE_EXTS.includes(ext)) return "image";
   if (mimeType.startsWith("video/") || VIDEO_EXTS.includes(ext)) return "video";
-  return "raw";
+  throw new Error("Only image and video uploads are supported.");
 }
 
 function sleep(ms) {
@@ -149,7 +149,7 @@ export async function uploadToCloudinary(file) {
       url: data.secure_url,
       publicId: data.public_id,
       resourceType: data.resource_type || resourceType,
-      mimeType: file.type || "application/octet-stream",
+      mimeType: file.type || (resourceType === "video" ? "video/*" : "image/*"),
       originalFilename: file.name || data.original_filename || "uploaded-file",
       bytes: typeof file.size === "number" ? file.size : data.bytes,
     };
